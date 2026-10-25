@@ -1,0 +1,7 @@
+{
+  "name": "wallet-fixture",
+  "private": true,
+  "dependencies": {
+    "@stellar/stellar-sdk": "16.4.0"
+  }
+}

@@ -1,0 +1,26 @@
+p30check 0.1.0-dev - Stellar Protocol 30 compatibility scan (report schema 1)
+Target:     testdata/fixtures/js-app
+Checked at: 2026-10-25T12:00:00Z
+Inventory:  1 manifest file(s), 2 source file(s), 2 skipped entries
+Rules run:  0
+
+Findings (0): none reported
+
+Warnings (2):
+  [check-not-implemented] package.json: dependency capability check P30-DEP-001 is not implemented yet; SDK versions in this file were not evaluated
+  [no-rules] this build ships no Protocol 30 compatibility rules; the report is an inventory only and makes no compatibility claim
+
+Discovered files:
+  manifest package-json     package.json
+  source   source-ts        src/index.ts
+  source   source-jsx       src/view.jsx
+
+Skipped:
+  dist (ignored directory)
+  node_modules (ignored directory)
+
+Limitations:
+  - Static, offline analysis only: scanned code is never executed, and no network or RPC calls are made.
+  - A finding is an indication to review, not proof of runtime breakage; no findings is not proof of Protocol 30 compatibility.
+  - Stellar's November 3, 2026 (Testnet) and November 23, 2026 (Mainnet) dates are upgrade votes, not guaranteed activation dates.
+  - Ignored directories, symlinks that are not followed, and files over the size limit are not inspected; see the skipped list.
