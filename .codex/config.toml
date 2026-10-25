@@ -1,0 +1,6 @@
+# Project-local Codex preferences. Read README.md before use.
+# Exact availability depends on the account, Codex client, and model.
+model = "gpt-6.1-sol"
+model_reasoning_effort = "xhigh"
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
