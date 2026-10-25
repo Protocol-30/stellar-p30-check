@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/Protocol-30/stellar-p30-check/internal/deps"
 )
 
 // schemaContract is intentionally not a JSON Schema evaluator. This check guards
@@ -47,6 +49,9 @@ func TestPublishedSchemaMatchesModelContract(t *testing.T) {
 		{"inventory_item", InventoryItem{}, schema.Defs["inventory_item"]},
 		{"skipped", Skipped{}, schema.Defs["skipped"]},
 		{"coverage", Coverage{}, schema.Defs["coverage"]},
+		{"dependency", deps.Dependency{}, schema.Defs["dependency"]},
+		{"capabilities", deps.Capabilities{}, schema.Defs["capabilities"]},
+		{"dependency_warning", deps.Warning{}, schema.Defs["dependency_warning"]},
 	}
 	for _, model := range models {
 		t.Run(model.name, func(t *testing.T) {
@@ -89,5 +94,35 @@ func TestPublishedSchemaMatchesModelContract(t *testing.T) {
 	}
 	if finding.Properties["line"].Minimum != 1 {
 		t.Error("a present line number must be positive")
+	}
+}
+
+func TestCapabilitySchemaEnumsAndLegacySchema(t *testing.T) {
+	data, err := os.ReadFile("../../docs/report.schema.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var schema schemaContract
+	if err := json.Unmarshal(data, &schema); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"cap88", "muxed_contract_xdr", "w_address_helpers"} {
+		if !slices.Equal(schema.Defs["capabilities"].Properties[name].Enum, []string{"supported", "unsupported", "unknown"}) {
+			t.Errorf("wrong capability state contract for %s", name)
+		}
+	}
+	legacy, err := os.ReadFile("../../docs/report-v1.schema.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var old schemaContract
+	if err := json.Unmarshal(legacy, &old); err != nil {
+		t.Fatal(err)
+	}
+	if old.Properties["schema_version"].Const != "1" {
+		t.Error("legacy report schema was not preserved")
+	}
+	if _, exists := old.Properties["dependencies"]; exists {
+		t.Error("legacy schema unexpectedly contains version2 fields")
 	}
 }

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Protocol-30/stellar-p30-check/internal/deps"
 )
 
 func fixtureReport() ScanReport {
@@ -36,12 +38,12 @@ func TestJSONContractAndClock(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &doc); err != nil {
 		t.Fatal(err)
 	}
-	for _, field := range []string{"schema_version", "tool_version", "target", "checked_at_utc", "findings", "summary", "limitations", "inventory", "coverage"} {
+	for _, field := range []string{"schema_version", "tool_version", "target", "checked_at_utc", "findings", "summary", "limitations", "inventory", "dependencies", "dependency_warnings", "coverage"} {
 		if _, ok := doc[field]; !ok {
 			t.Errorf("missing required root field %q", field)
 		}
 	}
-	for _, field := range []string{"findings", "limitations", "inventory"} {
+	for _, field := range []string{"findings", "limitations", "inventory", "dependencies", "dependency_warnings"} {
 		if string(doc[field]) != "[]" {
 			t.Errorf("%s should be [] rather than null: %s", field, doc[field])
 		}
@@ -49,7 +51,7 @@ func TestJSONContractAndClock(t *testing.T) {
 	if string(doc["checked_at_utc"]) != `"2026-10-25T17:12:13.123Z"` {
 		t.Errorf("UTC timestamp = %s", doc["checked_at_utc"])
 	}
-	if string(doc["schema_version"]) != `"1"` {
+	if string(doc["schema_version"]) != `"`+SchemaVersion+`"` {
 		t.Errorf("schema version = %s", doc["schema_version"])
 	}
 	var coverage map[string]json.RawMessage
@@ -165,7 +167,7 @@ func TestNormalizeEmptyArraysAndUnknownLine(t *testing.T) {
 	if err := Normalize(&r); err != nil {
 		t.Fatal(err)
 	}
-	if r.Findings[0].References == nil || r.Limitations == nil || r.Inventory == nil || r.Coverage.Skipped == nil {
+	if r.Findings[0].References == nil || r.Limitations == nil || r.Inventory == nil || r.Dependencies == nil || r.DependencyWarnings == nil || r.Coverage.Skipped == nil {
 		t.Error("nil collections were not normalized")
 	}
 	b, err := json.Marshal(r.Findings[0])
@@ -333,5 +335,133 @@ func TestRenderRejectsUnsupportedFormatWithoutOutput(t *testing.T) {
 	var out bytes.Buffer
 	if err := Render(&out, "sarif", fixtureReport()); err == nil || out.Len() != 0 {
 		t.Error("unsupported format was not rejected before output")
+	}
+}
+
+func fixtureDependency() deps.Dependency {
+	return deps.Dependency{
+		Ecosystem: "npm", Name: "@stellar/stellar-sdk", Group: "dependencies",
+		Scope: ".", Path: "package.json", Declared: "^16.4.0", Version: "16.4.0",
+		Resolution: "lockfile", Source: "package-lock.json", Effective: true,
+		Capabilities: &deps.Capabilities{
+			MatrixVersion: "1", CheckedAt: "2026-10-25", Version: "16.4.0",
+			CAP88: "supported", MuxedContractXDR: "supported", WAddressHelpers: "unsupported",
+			References: []string{"https://example.com/z", "https://example.com/a"},
+		},
+	}
+}
+
+func TestDependencyNormalizationAndInputImmutability(t *testing.T) {
+	r := fixtureReport()
+	a := fixtureDependency()
+	a.Uncertainty = []string{"z uncertainty", "a uncertainty", "a uncertainty"}
+	b := fixtureDependency()
+	b.Path = "apps/other/package.json"
+	b.Effective = false
+	b.Capabilities = nil
+	r.Dependencies = []deps.Dependency{a, b}
+	r.DependencyWarnings = []deps.Warning{
+		{Path: "z/package.json", Code: "unresolved", Message: "not selected"},
+		{Path: "a/package.json", Code: "missing_lock", Message: "lock unavailable"},
+	}
+	before, err := json.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var first bytes.Buffer
+	if err := Render(&first, "json", r); err != nil {
+		t.Fatal(err)
+	}
+	if err := Render(io.Discard, "text", r); err != nil {
+		t.Fatal(err)
+	}
+	after, err := json.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Error("Render changed caller dependency metadata or nested capabilities")
+	}
+	var decoded ScanReport
+	if err := json.Unmarshal(first.Bytes(), &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Dependencies[0].Path != b.Path || decoded.DependencyWarnings[0].Path != "a/package.json" {
+		t.Errorf("dependency/warning sort is unstable: %+v %+v", decoded.Dependencies, decoded.DependencyWarnings)
+	}
+	normalized := decoded.Dependencies[1]
+	if !slices.Equal(normalized.Uncertainty, []string{"a uncertainty", "z uncertainty"}) || !slices.Equal(normalized.Capabilities.References, []string{"https://example.com/a", "https://example.com/z"}) {
+		t.Errorf("nested dependency metadata not normalized: %+v", normalized)
+	}
+	if decoded.Dependencies[0].Uncertainty == nil {
+		t.Error("unknown/empty uncertainty must remain an array")
+	}
+	slices.Reverse(r.Dependencies)
+	slices.Reverse(r.DependencyWarnings)
+	var second bytes.Buffer
+	if err := Render(&second, "json", r); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(first.Bytes(), second.Bytes()) {
+		t.Error("dependency report depends on inventory input ordering")
+	}
+}
+
+func TestDependencyTextEscapesAllTargetMetadata(t *testing.T) {
+	r := fixtureReport()
+	payload := "untrusted\x1b[31m\nforged dependency\r\t\u202e"
+	d := fixtureDependency()
+	d.Ecosystem, d.Name, d.Group, d.Alias = payload, payload, payload, payload
+	d.Scope, d.Path, d.Declared, d.Version = payload, payload, payload, payload
+	d.Resolution, d.Source, d.Uncertainty = payload, payload, []string{payload}
+	d.Capabilities.MatrixVersion, d.Capabilities.CheckedAt, d.Capabilities.Version = payload, payload, payload
+	d.Capabilities.References = []string{payload}
+	r.Dependencies = []deps.Dependency{d}
+	r.DependencyWarnings = []deps.Warning{{Path: payload, Code: payload, Message: payload}}
+	var out bytes.Buffer
+	if err := Render(&out, "text", r); err != nil {
+		t.Fatal(err)
+	}
+	for _, forbidden := range []string{"\x1b", "\r", "\t", "\u202e", "\nforged dependency"} {
+		if strings.Contains(out.String(), forbidden) {
+			t.Errorf("raw dependency control %q found in text", forbidden)
+		}
+	}
+	if strings.Count(out.String(), `untrusted\x1b[31m\nforged dependency\r\t\u202e`) != 18 {
+		t.Errorf("not all dependency fields rendered safely:\n%s", out.String())
+	}
+	if !strings.Contains(out.String(), "observed version:") || !strings.Contains(out.String(), "effective: true") {
+		t.Error("text hides observed-version/effective-selection distinction")
+	}
+	var encoded bytes.Buffer
+	if err := Render(&encoded, "json", r); err != nil {
+		t.Fatal(err)
+	}
+	if !json.Valid(encoded.Bytes()) || bytes.ContainsRune(encoded.Bytes(), '\x1b') {
+		t.Error("dependency JSON has invalid or raw control text")
+	}
+}
+
+func TestRejectInvalidDependencyMetadataBeforeOutput(t *testing.T) {
+	tests := []struct {
+		name string
+		edit func(*ScanReport)
+	}{
+		{"dependency line", func(r *ScanReport) { r.Dependencies[0].Line = -1 }},
+		{"warning line", func(r *ScanReport) { r.DependencyWarnings = []deps.Warning{{Line: -1}} }},
+		{"CAP88 state", func(r *ScanReport) { r.Dependencies[0].Capabilities.CAP88 = "yes" }},
+		{"muxed state", func(r *ScanReport) { r.Dependencies[0].Capabilities.MuxedContractXDR = "" }},
+		{"helpers state", func(r *ScanReport) { r.Dependencies[0].Capabilities.WAddressHelpers = "maybe" }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			r := fixtureReport()
+			r.Dependencies = []deps.Dependency{fixtureDependency()}
+			test.edit(&r)
+			var out bytes.Buffer
+			if err := Render(&out, "json", r); err == nil || out.Len() != 0 {
+				t.Fatal("invalid dependency metadata was not rejected before writing")
+			}
+		})
 	}
 }

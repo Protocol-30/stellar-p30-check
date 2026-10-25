@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"slices"
 	"time"
+
+	"github.com/Protocol-30/stellar-p30-check/internal/deps"
 )
 
 // SchemaVersion changes when the report's consumer-visible contract changes.
-const SchemaVersion = "1"
+const SchemaVersion = "2"
 
 type Severity string
 
@@ -71,30 +73,34 @@ type Coverage struct {
 }
 
 type ScanReport struct {
-	SchemaVersion string          `json:"schema_version"`
-	ToolVersion   string          `json:"tool_version"`
-	Target        string          `json:"target"`
-	CheckedAtUTC  string          `json:"checked_at_utc"`
-	Findings      []Finding       `json:"findings"`
-	Summary       Summary         `json:"summary"`
-	Limitations   []string        `json:"limitations"`
-	Inventory     []InventoryItem `json:"inventory"`
-	Coverage      Coverage        `json:"coverage"`
-	Error         string          `json:"error,omitempty"`
+	SchemaVersion      string            `json:"schema_version"`
+	ToolVersion        string            `json:"tool_version"`
+	Target             string            `json:"target"`
+	CheckedAtUTC       string            `json:"checked_at_utc"`
+	Findings           []Finding         `json:"findings"`
+	Summary            Summary           `json:"summary"`
+	Limitations        []string          `json:"limitations"`
+	Inventory          []InventoryItem   `json:"inventory"`
+	Dependencies       []deps.Dependency `json:"dependencies"`
+	DependencyWarnings []deps.Warning    `json:"dependency_warnings"`
+	Coverage           Coverage          `json:"coverage"`
+	Error              string            `json:"error,omitempty"`
 }
 
 // New accepts a clock value rather than reading the clock internally so tests
 // and reproducible callers can choose exactly the same timestamp.
 func New(target, version string, now time.Time) ScanReport {
 	return ScanReport{
-		SchemaVersion: SchemaVersion,
-		ToolVersion:   version,
-		Target:        target,
-		CheckedAtUTC:  now.UTC().Format(time.RFC3339Nano),
-		Findings:      []Finding{},
-		Limitations:   []string{},
-		Inventory:     []InventoryItem{},
-		Coverage:      Coverage{Skipped: []Skipped{}},
+		SchemaVersion:      SchemaVersion,
+		ToolVersion:        version,
+		Target:             target,
+		CheckedAtUTC:       now.UTC().Format(time.RFC3339Nano),
+		Findings:           []Finding{},
+		Limitations:        []string{},
+		Inventory:          []InventoryItem{},
+		Dependencies:       []deps.Dependency{},
+		DependencyWarnings: []deps.Warning{},
+		Coverage:           Coverage{Skipped: []Skipped{}},
 	}
 }
 
@@ -126,6 +132,26 @@ func Normalize(r *ScanReport) error {
 			return err
 		}
 	}
+	for _, d := range r.Dependencies {
+		if d.Line < 0 {
+			return fmt.Errorf("dependency %q: line must not be negative", d.Name)
+		}
+		if d.Capabilities != nil {
+			for _, state := range []string{d.Capabilities.CAP88, d.Capabilities.MuxedContractXDR, d.Capabilities.WAddressHelpers} {
+				if state != "supported" && state != "unsupported" && state != "unknown" {
+					return fmt.Errorf("dependency %q: invalid capability state %q", d.Name, state)
+				}
+			}
+		}
+	}
+	for _, warning := range r.DependencyWarnings {
+		if warning.Line < 0 {
+			return fmt.Errorf("dependency warning %q: line must not be negative", warning.Code)
+		}
+	}
+	inventory := deps.Inventory{Dependencies: r.Dependencies, Warnings: r.DependencyWarnings}
+	deps.Normalize(&inventory)
+	r.Dependencies, r.DependencyWarnings = inventory.Dependencies, inventory.Warnings
 	if r.Findings == nil {
 		r.Findings = []Finding{}
 	}

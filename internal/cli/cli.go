@@ -11,7 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Protocol-30/stellar-p30-check/internal/deps"
 	"github.com/Protocol-30/stellar-p30-check/internal/report"
+	"github.com/Protocol-30/stellar-p30-check/internal/rules"
 	"github.com/Protocol-30/stellar-p30-check/internal/walker"
 )
 
@@ -20,7 +22,8 @@ const usage = `Usage:
   p30check version
   p30check --help
 
-M1 inventories files; no Protocol 30 compatibility rules are implemented.
+M2 checks supported SDK dependency capabilities using static manifest/lock data.
+Unresolved versions are warnings; address and raw-XDR source checks are not implemented.
 An empty report does not establish compatibility.
 
 Scan options (flags may precede or follow the path):
@@ -172,14 +175,16 @@ func scan(cfg scanArgs, stdout, stderr io.Writer, opts Options) int {
 	}
 	r := report.New(target, opts.Version, opts.Now())
 	r.Limitations = []string{
-		"M1 implements discovery and reporting only; zero Protocol 30 compatibility rules are implemented.",
-		"Dependency manifests are inventoried only; selected SDK versions, CAP-84/W address handling, CAP-88/XDR, and timestamp assumptions are not checked.",
+		"M2 implements P30-DEP-001 SDK dependency capability checks only; address logic, raw-XDR usage, and timestamp assumptions are not analyzed.",
+		"Capability evidence covers exact verified releases only. Manifest constraints, unavailable graphs, replacements, unsupported locks, and uncertain registry provenance do not prove an effective SDK version.",
+		"Effective dependency records mean supported nominal lock/declaration agreement, not installed-artifact verification. npm registry URLs can use a configured registry; credential-bearing registry configuration is not read.",
+		"Missing SDK capabilities are review guidance, not proven application breakage; M2 cannot establish affected runtime roles and emits no high-severity findings.",
 		"An empty findings list is not evidence of Protocol 30 compatibility.",
 		"Completeness describes only the selected filesystem scope; ignored, generated, symlink, and nonregular entries are excluded. Concurrent file changes are not a stable snapshot.",
 	}
 	discovered, scanErr := opts.Scan(target, cfg.limits)
 	r.Coverage = report.Coverage{
-		Complete: discovered.Complete, RulesImplemented: 0,
+		Complete: discovered.Complete, RulesImplemented: 1,
 		FilesScanned: len(discovered.Files), EntriesVisited: discovered.EntriesVisited,
 		BytesRead: discovered.BytesRead,
 	}
@@ -189,6 +194,23 @@ func scan(cfg scanArgs, stdout, stderr io.Writer, opts Options) int {
 	for _, skipped := range discovered.Skipped {
 		r.Coverage.Skipped = append(r.Coverage.Skipped, report.Skipped{Path: skipped.Path, Reason: skipped.Reason})
 	}
+	inventory, dependencyErr := deps.Inspect(discovered.Files)
+	r.Dependencies = inventory.Dependencies
+	r.DependencyWarnings = inventory.Warnings
+	if discovered.Complete && scanErr == nil && dependencyErr == nil {
+		var warnings []deps.Warning
+		r.Dependencies, r.Findings, warnings = rules.Evaluate(r.Dependencies)
+		r.DependencyWarnings = append(r.DependencyWarnings, warnings...)
+	} else {
+		// A partial tree may omit an override or conflicting lockfile. Never
+		// promote observations from that tree to resolved capability findings.
+		for i := range r.Dependencies {
+			r.Dependencies[i].Effective = false
+			r.Dependencies[i].Uncertainty = append(r.Dependencies[i].Uncertainty, "discovery or dependency parsing is incomplete")
+		}
+		r.Limitations = append(r.Limitations, "SDK capability evaluation was withheld because discovery or dependency parsing is incomplete.")
+	}
+	scanErr = errors.Join(scanErr, dependencyErr)
 	if scanErr != nil {
 		r.Error = scanErr.Error()
 		r.Coverage.Complete = false

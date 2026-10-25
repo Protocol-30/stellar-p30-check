@@ -1,71 +1,62 @@
 # Architecture
 
-M1 is one offline Go process. It has no third-party dependencies or running services.
+M2 is one offline Go process. It uses pinned Go module and YAML parsers, not a Stellar SDK, and requires no running services.
 
 ```text
-CLI arguments -> rooted discovery -> inventory -> report normalization -> text/JSON -> exit policy
+CLI arguments -> rooted walker -> dependency inventory -> capability/rule evaluation -> report -> exit policy
 ```
 
-`cmd/p30check` supplies process arguments and exit status. `internal/cli` owns argument handling and orchestration with an injectable clock for deterministic tests. `internal/walker` owns filesystem access and limits. `internal/report` owns the report model, enum validation, normalization, renderers, and exit policy. Compatibility analysis will be inserted between inventory and report normalization; no analysis engine or fake rules are included now.
+`cmd/p30check` supplies arguments and process status. `internal/cli` orchestrates with an injectable clock. `internal/walker` owns bounded rooted filesystem reads. `internal/deps` parses only the already discovered contents and separates observed declarations from effective selection. `internal/rules` annotates exact known SDK capabilities and emits the conservative dependency rule. `internal/report` owns normalization, schema, sanitized text/JSON, and exit policy. Scan-time parsing/evaluation never invokes target tools or the network.
 
-## Discovery contract
+## Discovery and parser boundaries
 
-The target is an explicit directory, not a symlink. Child paths are relative to an opened root and are never allowed to escape it. Symlinks and nonregular files are excluded. On Linux, safe file opening also protects against replacement by symlinks/FIFOs between inspection and opening. This is confinement, not a snapshot guarantee: concurrent tree changes may produce errors or inconsistent inventories.
+The explicit target is a directory, not a symlink. Child operations remain rooted; symlinks and nonregular files are excluded. Unix safe opening also guards FIFO/symlink replacement. This provides confinement, not a point-in-time snapshot.
 
-Defaults are 2 MiB per file, 64 MiB total bytes read, 10000 selected-file candidates, 100000 encountered child entries, and directory depth 64 with root depth 0. Directory enumeration is bounded. Generated/binary candidates may consume the byte budget before classification excludes them. Exact exclusions are in [limitations](limitations.md).
+Defaults remain 2 MiB per selected file, 64 MiB bytes read, 10000 selected regular-file candidates, 100000 child entries, and directory depth 64 with root at 0. Directory enumeration is bounded. Generated/binary candidates can consume byte limits before exclusion. Exact scope is in [limitations](limitations.md).
 
-Normal completion includes documented scope exclusions. Unexpected traversal/read errors or exceeded ceilings produce a partial report with `coverage.complete: false`, an error, and exit 2. A complete filesystem inventory still provides zero compatibility-rule coverage in M1.
+The parser receives bounded in-memory file records, including `go.work` and `pnpm-workspace.yaml` in M2. Go module/workspace parsing uses `golang.org/x/mod v0.42.0`; YAML lock parsing uses `go.yaml.in/yaml/v3 v3.0.5`. Both are pinned/checksummed. No parser dependency is a Stellar runtime dependency.
+
+A valid but unsupported format or unresolved selection yields structured warnings/uncertainty. A malformed or safety-rejected recognized manifest/lock, NUL-containing recognized dependency metadata, unexpected traversal/read error, or exhausted ceiling yields a partial report, `coverage.complete: false`, and exit 2. Complete describes completion in the selected scope, including deliberate exclusions; it does not mean all dependency selections or protocol behavior are known.
+
+## Dependency evidence
+
+Dependency records contain ecosystem, group, canonical/observed name, scope, source path/optional line, declaration, observed version, resolution/source descriptions, `effective`, uncertainty, and optional capability annotation. Optional alias preserves a declaration's alternate name. Records remain scoped to their source module/package so unrelated directories are not silently treated as one application.
+
+An observed version is not inherently an effective build version. Go requirements/replacements/workspaces remain `effective: false` because local manifest text alone cannot prove complete MVS selection. Go checksum history cannot prove selection. For supported JS cases, effective selection requires current workspace membership where an ancestor lock is used, consistent explicit package-manager metadata when present, compatible declaration/lock identity/version and matching expected HTTPS official-registry tarball URL metadata, with no unresolved uncertainty. No artifact is downloaded or verified. npm registry URLs are installation-time magic values that can use a configured registry; credential-bearing npmrc files are not read. Effective therefore means supported **nominal static lock/declaration agreement**, not proof of actual routing, official artifact origin, installation, or target runtime use.
+
+Capability annotations describe the **observed version only**, even on an ineffective/uncertain record. Matrix version `2026-10-25.1` records a checked date and source references. Each of `cap88`, `muxed_contract_xdr`, and `w_address_helpers` is `supported|unsupported|unknown`. Unknown/future releases, prereleases, and unverified families are not extrapolated.
 
 ## Report contract
 
-The machine-readable contract is [report.schema.json](report.schema.json) (JSON Schema draft 2020-12). JSON root fields in schema version `"1"`:
+The emitted contract is [report.schema.json](report.schema.json), JSON Schema draft 2020-12, schema version **`"2"`**. [report-v1.schema.json](report-v1.schema.json) preserves the old document for historical consumers; there is no v1 output renderer/flag.
 
 | Field | Type | Meaning |
 |---|---|---|
-| `schema_version` | string | Report contract version (`"1"`) |
-| `tool_version` | string | Build/tool version, distinct from schema version |
+| `schema_version` | string | `"2"` |
+| `tool_version` | string | Build version, distinct from schema version |
 | `target` | string | Selected target path |
 | `checked_at_utc` | string | UTC RFC3339 timestamp; tests inject the clock |
-| `findings` | array | Findings; always empty in M1 |
+| `findings` | array | Scoped dependency findings; absence is not compatibility proof |
 | `summary` | object | `total`, `info`, `medium`, `high` finding counts |
-| `limitations` | array of strings | Missing analysis and other interpretation limits |
-| `inventory` | array | Selected-file records: `path`, `kind`, `size` |
-| `coverage` | object | Completeness and discovery/rule-coverage counters |
-| `error` | string, optional | Scan failure associated with a partial report |
+| `limitations` | array of strings | Interpretation and missing-analysis limits |
+| `inventory` | array | Selected file metadata: `path`, `kind`, `size` |
+| `dependencies` | array | Dependency declarations, observations, resolution evidence, uncertainty, optional capabilities |
+| `dependency_warnings` | array | `path`, optional positive `line`, `code`, `message` |
+| `coverage` | object | Discovery completion/counters and available rule count |
+| `error` | string, optional | Failure associated with a partial report |
 
-Coverage contains `complete` (boolean), `rules_implemented`, `files_scanned`, `entries_visited`, `bytes_read` (integers), and `skipped` (array of `{ "path": string, "reason": string }`). Inspect exclusions as well as `complete` before interpreting a run. `files_scanned` counts included selected files, not all entries in the repository. The inventory is file metadata; it is not a resolved dependency graph.
+Coverage fields remain `complete`, `rules_implemented`, `files_scanned`, `entries_visited`, `bytes_read`, and `skipped` (`path`/`reason` records). `rules_implemented` is **1**, whether or not the target contains a supported dependency. It does not count findings or prove rule applicability. Warnings and skipped records must be considered alongside completeness.
 
-Future findings use `rule_id`, `severity`, `confidence`, `path`, optional `line`, `message`, `evidence`, `remediation`, and `references`. Severity is `info|medium|high`; confidence is `low|medium|high`. Line numbers, when known, are positive and one-based. "Informational" is a severity description, not an allowed confidence value. Findings sort by path, line, rule, and stable tie-breakers. Inventory and exclusions are sorted. Findings, references, inventory, limitations, and exclusions use arrays rather than null collections.
+Finding fields remain `rule_id`, `severity`, `confidence`, `path`, optional positive one-based `line`, `message`, `evidence`, `remediation`, and `references`. Severity is `info|medium|high`; confidence is `low|medium|high`. Arrays are nonnull, output is deterministically sorted, and repeated uncertainty is deduplicated. The clock is the documented ordinary source of variability.
 
-The following is an **illustrative empty-directory report**, not a compatibility result:
+Text includes dependency and warning sections and escapes all target-controlled strings. JSON uses proper encoding. Dependency rows distinguish declared/observed version, source/resolution, effective selection, uncertainty, and observed-version capabilities; no output field should be read as a runtime certificate.
 
-```json
-{
-  "schema_version": "1",
-  "tool_version": "example",
-  "target": "/example/empty",
-  "checked_at_utc": "2026-10-25T00:00:00Z",
-  "findings": [],
-  "summary": {"total": 0, "info": 0, "medium": 0, "high": 0},
-  "limitations": ["No Protocol 30 compatibility rules are implemented."],
-  "inventory": [],
-  "coverage": {
-    "complete": true,
-    "rules_implemented": 0,
-    "files_scanned": 0,
-    "entries_visited": 0,
-    "bytes_read": 0,
-    "skipped": []
-  }
-}
-```
+## Rule and exit policy
 
-JSON encoding escapes JSON control characters. Text rendering escapes target-controlled strings, including evidence, paths, and errors, so control sequences cannot forge additional output lines. The timestamp is expected to vary between ordinary runs; deterministic tests supply the same clock.
+P30-DEP-001 can emit one finding when uncertainty-free supported metadata nominally selects a canonical official SDK release with verified missing capabilities. It lists missing capabilities in one scoped finding. Severity is **medium**, confidence **high**: missing SDK capability is known, application reliance is not.
 
-## Exit policy
+`--fail-on none` is default. Exit 1 requires both high severity and high confidence with `--fail-on high`; M2 dependency findings cannot trigger it. Errors/incomplete scans exit 2 regardless of the gate. Completed nongated scans exit 0, including scans with medium dependency findings and warnings. Injected tests preserve the high-gate contract for later rules.
 
-`--fail-on none` is the default. A completed scan exits 0 unless the caller opts into `--fail-on high` and there is a finding with both high severity and high confidence. That combination exits 1. Invalid arguments, failures, and unexpected incomplete scans exit 2 regardless of the gate. Policy tests inject findings; the actual M1 scanner emits none.
+## Scope relative to the original plan
 
-## Differences from the planning tree
-
-M1 deliberately omits `internal/deps`, `internal/rules`, CAP/XDR fixtures, an SDK dependency, and `go.sum`: none are needed by a standard-library-only discovery/reporting CLI. Product docs replace the handoff README. No project-local model or approval settings are installed. No license is assumed and no remote CI/release success is claimed.
+M2 adds `internal/deps`, `internal/rules`, parser modules, `go.sum`, and dependency fixtures. It still has no address/source AST rules, target raw-XDR decoder analysis, captured ledger fixtures, SDK runtime dependency, published reusable action, or release artifacts. The original target tree and M0/M1 build report are historical; [m2-build-report.md](m2-build-report.md) records this increment's validation.

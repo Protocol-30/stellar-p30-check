@@ -26,9 +26,11 @@ func TestScanRelevantFilesAndDeterministicOrder(t *testing.T) {
 	fixtures := map[string]string{
 		"nested/main.go": "package main\n", "app.jsx": "export default null;\n",
 		"go.mod": "module example.test/app\n", "go.sum": "opaque checksums\n",
+		"go.work": "go 1.27.0\nuse .\n", "go.work.sum": "workspace checksums\n",
 		"package.json": "{malformed but inventoried}", "package-lock.json": "{}",
 		"npm-shrinkwrap.json": "{}", "yarn.lock": "# locks", "pnpm-lock.yaml": "{}",
-		"types.ts": "export {};", "view.tsx": "export {};", "plain.js": "let x = 1;",
+		"pnpm-workspace.yaml": "packages: ['packages/*']\n",
+		"types.ts":            "export {};", "view.tsx": "export {};", "plain.js": "let x = 1;",
 		"notes.txt": "irrelevant",
 	}
 	for name, content := range fixtures {
@@ -37,8 +39,10 @@ func TestScanRelevantFilesAndDeterministicOrder(t *testing.T) {
 	wantKinds := map[string]string{
 		"nested/main.go": "go_source", "app.jsx": "js_source", "go.mod": "go_module",
 		"go.sum": "go_checksum", "package.json": "js_manifest", "package-lock.json": "npm_lock",
+		"go.work": "go_workspace", "go.work.sum": "go_workspace_checksum",
 		"npm-shrinkwrap.json": "npm_lock", "yarn.lock": "yarn_lock", "pnpm-lock.yaml": "pnpm_lock",
-		"types.ts": "ts_source", "view.tsx": "ts_source", "plain.js": "js_source",
+		"pnpm-workspace.yaml": "pnpm_workspace",
+		"types.ts":            "ts_source", "view.tsx": "ts_source", "plain.js": "js_source",
 	}
 	first, err := Scan(root, DefaultLimits())
 	if err != nil || !first.Complete {
@@ -266,6 +270,19 @@ func TestPartialResultPreservedOnLimit(t *testing.T) {
 	result, err := Scan(root, limits)
 	if err == nil || result.Complete || len(result.Files) != 1 || result.Files[0].Path != "a.go" {
 		t.Fatalf("partial result lost: %+v, %v", result, err)
+	}
+}
+
+func TestBinaryMetadataIsIncomplete(t *testing.T) {
+	for _, name := range []string{"go.mod", "go.sum", "go.work", "go.work.sum", "package.json", "package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock.yaml", "pnpm-workspace.yaml"} {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			write(t, root, name, "metadata\x00corrupt")
+			r, err := Scan(root, DefaultLimits())
+			if err == nil || r.Complete || !strings.Contains(err.Error(), "metadata") || !strings.Contains(err.Error(), name) {
+				t.Fatalf("binary dependency metadata was silently excluded: %+v, %v", r, err)
+			}
+		})
 	}
 }
 

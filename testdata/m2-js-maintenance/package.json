@@ -1,0 +1,7 @@
+{
+  "name": "p30check-m2-js-maintenance-fixture",
+  "private": true,
+  "dependencies": {
+    "@stellar/stellar-sdk": "16.4.0"
+  }
+}

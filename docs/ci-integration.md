@@ -1,8 +1,8 @@
 # CI integration
 
-The scanner's workflow is `.github/workflows/ci.yml`, named **CI**. It defines job ID `test`, displayed as **Go checks**, on Ubuntu with Go 1.27.3. It runs the unit suite, race suite, vet, build, and a real JSON CLI smoke request. Remote execution has not been established merely by adding this file.
+The scanner workflow is `.github/workflows/ci.yml`, named **CI**, job ID `test` displayed as **Go checks**, on Ubuntu with Go 1.27.3. It runs module integrity checks, unit tests, race tests, vet, build, and actual CLI smoke requests. A checked-in workflow or local success does not establish a remote green GitHub Actions run.
 
-M1 is not yet a useful compatibility gate for downstream repositories: it implements no detection rules. If you run it in CI, use its inventory/coverage as a discovery check and retain the limitations in any report consumers.
+M2 can provide dependency warnings and inventory downstream. It is not yet a runtime compatibility gate: P30-DEP-001 is medium severity/high confidence because application feature use is unproven. With the existing `--fail-on high` policy, these findings do not cause exit 1.
 
 After building the scanner from a trusted reviewed revision:
 
@@ -10,8 +10,10 @@ After building the scanner from a trusted reviewed revision:
 ./p30check scan /path/to/checkout --format json --fail-on high > report.json
 ```
 
-Check the process status before consuming findings. Exit 2 means invalid usage, a failure, or an unexpected incomplete scan. Exit 1 is reserved for high-severity and high-confidence findings under the opted-in gate; M1 has no rules that can produce such findings. Exit 0 is not a compatibility certificate. Also check `coverage.rules_implemented`, `coverage.complete`, exclusions, and limitations.
+Check process status before consuming output. Exit 2 means invalid usage, malformed or safety-rejected recognized input, failure, or unexpected incompleteness. Exit 1 requires a high-severity/high-confidence gated finding, which the M2 dependency rule does not produce. Exit 0 may include medium findings and dependency warnings; it never means compatible.
 
-Keep the scanner binary outside the target when practical. Do not invoke target builds or dependency installation to "help" the offline scan. Avoid placing private source or sensitive reports in public job artifacts. Preserve the scanner's exit status when piping output; shell pipelines otherwise can hide failures.
+Consume schema version **2**. Read `coverage.rules_implemented`, `coverage.complete`, exclusions, limitations, dependencies' `effective`/`uncertainty`, and `dependency_warnings`. Do not treat an observed supported SDK row as proof of effective selection or safe target code. Even `effective: true` means supported nominal metadata agreement, not verified actual registry routing, artifact origin, or installation. The v1 schema is retained as documentation only, not as a renderer option.
 
-A reusable GitHub Action, SARIF exporter, release binaries/checksums, automated PRs, and downstream version-pinning instructions are later work. No branch-protection check should be marked required until its actual name and behavior have been observed in GitHub.
+Keep the trusted scanner binary outside the target when practical. Do not invoke target builds or dependency installation to help the offline scan. The scanner's own pinned parser modules are installed during tool setup; that is separate from scanning. Keep private source/declarations/URLs and reports out of public artifacts. Preserve the underlying exit status when piping output.
+
+A reusable GitHub Action, SARIF exporter, release binaries/checksums, automated PRs, and downstream release-pinning policy are later work. Mark no branch-protection check required until its real remote name/behavior has been observed.

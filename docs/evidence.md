@@ -25,3 +25,22 @@ No Drips approved-repository count, project uniqueness, program eligibility, mod
 ## Evidence-change process
 
 For a new SDK family/version or changed protocol claim, record the exact official URL (prefer immutable tag/commit), checked date, observed capability, and limits. Keep source facts separate from scanner heuristics. Add positive and negative fixture tests before extending the capability matrix; do not extrapolate community SDK thresholds or infer effective dependency versions from checksum history. When a source is blocked, record the operation and response and leave the claim unverified.
+
+## M2 exact-release capability matrix
+
+Rechecked **October 25, 2026 (Africa/Lagos)** against the official tagged artifacts below. Matrix version **`2026-10-25.1`** is embedded in each capability annotation. This is an exact-release table, not a minimum-version threshold. Other releases, prereleases, build-metadata variants, legacy package families, and forks remain unknown until independently checked.
+
+| Ecosystem and canonical identity | Exact observed version | CAP-88 ledger XDR | Muxed-contract XDR | High-level W helpers | Tagged evidence |
+|---|---|---|---|---|---|
+| npm `@stellar/stellar-sdk` | `16.3.1` | Unsupported | Unsupported | Unsupported | [Generated XDR](https://github.com/stellar/js-stellar-sdk/blob/v16.3.1/src/base/generated/curr_generated.js), [Address](https://github.com/stellar/js-stellar-sdk/blob/v16.3.1/src/base/address.ts), [StrKey](https://github.com/stellar/js-stellar-sdk/blob/v16.3.1/src/base/strkey.ts), [package identity](https://github.com/stellar/js-stellar-sdk/blob/v16.3.1/package.json) |
+| npm `@stellar/stellar-sdk` | `16.4.0` | Supported | Supported | Unsupported | [Changelog](https://github.com/stellar/js-stellar-sdk/blob/v16.4.0/CHANGELOG.md), [package identity](https://github.com/stellar/js-stellar-sdk/blob/v16.4.0/package.json) |
+| npm `@stellar/stellar-sdk` | `17.3.0` | Supported | Supported | Supported | [Changelog](https://github.com/stellar/js-stellar-sdk/blob/v17.3.0/CHANGELOG.md), [package identity](https://github.com/stellar/js-stellar-sdk/blob/v17.3.0/package.json) |
+| Go `github.com/stellar/go-stellar-sdk` | `v0.8.0` | Supported | Supported | Supported (strkey helpers) | [Changelog](https://github.com/stellar/go-stellar-sdk/blob/v0.8.0/CHANGELOG.md), [module identity](https://github.com/stellar/go-stellar-sdk/blob/v0.8.0/go.mod) |
+
+The exact JS 16.3.1 generated schema has no CAP-88 millisecond `StellarValue` arms and no muxed-contract `ScAddress` arm. Its tagged Address/StrKey implementations have no W-address handling. This direct source evidence supports that exact negative row; it is not an assertion about every 16.3.x release. The 16.4.0 changelog explicitly distinguishes successful muxed-contract XDR decoding from higher-level helpers that throw on those addresses. The 17.3.0 and Go v0.8.0 changelogs explicitly add the relevant generated variants and W helpers.
+
+Capability annotations describe the **observed version**, while `effective` and `uncertainty` describe whether that version is sufficiently resolved for the dependency rule. M2 does not reconstruct a complete Go MVS graph; Go minimums, replacements, and workspaces therefore cannot create a dependency finding. npm aliases/forks, unsupported lock formats, contradictory locks, unsupported constraints, and missing effective-version evidence likewise cannot create one.
+
+`P30-DEP-001` emits one finding per adequately resolved dependency declaration/group with a verified missing capability. It combines missing capabilities into that finding and cites the declaration plus lock source. Findings are **medium severity / high confidence** in the dependency-capability evidence. M2 does not establish an affected runtime role, so it cannot justify high-severity application-impact gating. In particular, a 16.4.0 W-helper gap is guidance to review W-capable flows, not a claim that account-only validators should accept W or that all applications using that SDK are broken. Source-context checks remain later milestones.
+
+The rule's positive/negative dependency observations are stored in `internal/rules/testdata/capabilities.json`; they are static fixture declarations, not fabricated network/XDR payloads. Ordinary scans use the embedded table offline and never fetch these sources.

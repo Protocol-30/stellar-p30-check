@@ -56,6 +56,35 @@ func Render(w io.Writer, format string, r ScanReport) error {
 	for _, item := range r.Inventory {
 		fmt.Fprintf(&out, "  %s kind=%s bytes=%d\n", safe(item.Path), safe(item.Kind), item.Size)
 	}
+	fmt.Fprintf(&out, "Dependencies: %d\n", len(r.Dependencies))
+	for _, d := range r.Dependencies {
+		fmt.Fprintf(&out, "  %s ecosystem=%s group=%s scope=%s path=%s", safe(d.Name), safe(d.Ecosystem), safe(d.Group), safe(d.Scope), safe(d.Path))
+		if d.Line != 0 {
+			fmt.Fprintf(&out, " line=%d", d.Line)
+		}
+		if d.Alias != "" {
+			fmt.Fprintf(&out, " alias=%s", safe(d.Alias))
+		}
+		fmt.Fprintf(&out, "\n    Declared: %s; observed version: %s; resolution: %s; source: %s; effective: %t\n", safe(d.Declared), safe(d.Version), safe(d.Resolution), safe(d.Source), d.Effective)
+		for _, uncertainty := range d.Uncertainty {
+			fmt.Fprintf(&out, "    Uncertainty: %s\n", safe(uncertainty))
+		}
+		if c := d.Capabilities; c != nil {
+			fmt.Fprintf(&out, "    Observed-version capabilities: version=%s CAP-88=%s muxed-contract-XDR=%s W-helpers=%s\n", safe(c.Version), safe(c.CAP88), safe(c.MuxedContractXDR), safe(c.WAddressHelpers))
+			fmt.Fprintf(&out, "    Matrix: %s; checked: %s\n", safe(c.MatrixVersion), safe(c.CheckedAt))
+			for _, reference := range c.References {
+				fmt.Fprintf(&out, "    Reference: %s\n", safe(reference))
+			}
+		}
+	}
+	fmt.Fprintf(&out, "Dependency warnings: %d\n", len(r.DependencyWarnings))
+	for _, warning := range r.DependencyWarnings {
+		fmt.Fprintf(&out, "  %s path=%s", safe(warning.Code), safe(warning.Path))
+		if warning.Line != 0 {
+			fmt.Fprintf(&out, " line=%d", warning.Line)
+		}
+		fmt.Fprintf(&out, " message=%s\n", safe(warning.Message))
+	}
 	fmt.Fprintf(&out, "Skipped entries: %d\n", len(r.Coverage.Skipped))
 	for _, item := range r.Coverage.Skipped {
 		fmt.Fprintf(&out, "  %s reason=%s\n", safe(item.Path), safe(item.Reason))
@@ -80,6 +109,17 @@ func clone(r ScanReport) ScanReport {
 	}
 	r.Limitations = slices.Clone(r.Limitations)
 	r.Inventory = slices.Clone(r.Inventory)
+	r.Dependencies = slices.Clone(r.Dependencies)
+	for i := range r.Dependencies {
+		d := &r.Dependencies[i]
+		d.Uncertainty = slices.Clone(d.Uncertainty)
+		if d.Capabilities != nil {
+			capabilities := *d.Capabilities
+			capabilities.References = slices.Clone(capabilities.References)
+			d.Capabilities = &capabilities
+		}
+	}
+	r.DependencyWarnings = slices.Clone(r.DependencyWarnings)
 	r.Coverage.Skipped = slices.Clone(r.Coverage.Skipped)
 	return r
 }

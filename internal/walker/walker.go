@@ -260,6 +260,9 @@ func (s *scanner) readFile(name, kind string, before fs.FileInfo) error {
 		return fmt.Errorf("finish reading file %q: %w", name, err)
 	}
 	if bytes.IndexByte(data, 0) >= 0 {
+		if !strings.HasSuffix(kind, "_source") {
+			return fmt.Errorf("dependency metadata file %q contains NUL bytes", name)
+		}
 		s.skip(name, "binary")
 		return nil
 	}
@@ -281,6 +284,10 @@ func fileKind(name string) string {
 		return "go_module"
 	case "go.sum":
 		return "go_checksum"
+	case "go.work":
+		return "go_workspace"
+	case "go.work.sum":
+		return "go_workspace_checksum"
 	case "package.json":
 		return "js_manifest"
 	case "package-lock.json", "npm-shrinkwrap.json":
@@ -289,6 +296,8 @@ func fileKind(name string) string {
 		return "yarn_lock"
 	case "pnpm-lock.yaml":
 		return "pnpm_lock"
+	case "pnpm-workspace.yaml":
+		return "pnpm_workspace"
 	}
 	switch path.Ext(name) {
 	case ".go":

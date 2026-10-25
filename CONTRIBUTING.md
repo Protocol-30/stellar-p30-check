@@ -1,24 +1,28 @@
 # Contributing
 
-The current implementation stops at M0/M1. Propose changes against the current code and documented scope; address rules, SDK capability classification, and XDR checks belong to later milestones.
+The current implementation stops at M2: discovery, static dependency inventory, exact-version capability annotation, and conservative dependency findings. Source address heuristics and raw-XDR/timestamp analysis belong to later milestones.
 
-Use Go 1.27.3 and a C compiler for race testing. The project has no third-party dependencies. In the prepared cloud environment, run `source /workspace/dev-env.sh`, then work in `/workspace/stellar-p30-check`. Keep scanner execution offline and never execute code from a scan target.
+Use Go 1.27.3 and a C compiler for race testing. Initial setup runs `go mod download` with the pinned `go.mod`/`go.sum`; the scanner itself stays offline. In the prepared cloud environment, source `/workspace/dev-env.sh`, then work in `/workspace/stellar-p30-check`.
 
 Before submitting a focused change, run:
 
 ```sh
+go mod verify
 go test ./...
 go test -race ./...
 go vet ./...
 go build ./cmd/p30check
+python3 scripts/smoke.py
 ```
 
-Add tests that can fail for the behavior you change. Walker changes need boundary/error cases and must preserve root confinement, special-file handling, and explicit incomplete-scan reporting. Report changes need deterministic output, valid schema fields, and escaped target-controlled text. Do not replace unsupported analysis with a passing "compatible" result.
+The smoke script needs Python 3 standard library; it is development tooling, not a scanner runtime dependency.
 
-For future compatibility rules, provide at least one positive and one negative fixture, official source URLs, checked dates, and a documented evidence/confidence policy. Synthetic source examples are acceptable when labeled as examples; do not label invented XDR as captured network data. Include account-only and storage-key address contexts among negative fixtures for W-related rules.
+Add tests that can fail for the changed behavior. Walker changes need boundary/error cases, root confinement, special-file handling, and explicit incomplete-scan reporting. Parser changes need malformed recognized input, valid unsupported formats, scoped declarations, lock conflicts/source-URL metadata, and unknown selection cases. Report changes need schema-v2 validation, deterministic output, correct arrays/enums, and escaped target-controlled text.
 
-Use focused conventional commits and stage only intended files. Do not include credentials, scanned private repository content, compiled binaries, or environment caches. Update relevant docs and the changelog. Keep automatic formatting limited to changed Go files.
+Never run target builds, `go list`, package-manager scripts, or network fetches to resolve scan targets. Declared minimums, local replacements, stale checksums, integrity-only metadata, and unresolved graphs must not be promoted to supported nominal lock selection. An expected registry URL is metadata agreement, not independently proven artifact origin; installer configuration can redirect npm registry URLs and credential-bearing npmrc files are not scanned. Keep `effective` and uncertainty honest even when an observed version has a known capability row.
 
-The GitHub Actions job is `test` (**Go checks**) in workflow **CI**. A workflow file is not evidence that remote checks passed. Branch protection and release policy must refer to checks actually observed in GitHub.
+For compatibility rules, provide at least one positive and one negative fixture, official URLs, checked dates, and an evidence/confidence policy. M2 dependency findings remain medium severity because application-role evidence is absent. Future W rules require negative fixtures for intentional account-only, AddressObject, and storage-key rejection. Label synthetic source/lock examples as examples; do not label invented XDR as captured network data. Unknown or unsupported analysis is not a passing compatibility result.
 
-No license has been selected. Resolve licensing with the repository owner before distributing code or accepting contributions under assumed terms. Publishing, pushing, deploying, and creating remote resources require the owner's authorization.
+Use focused conventional commits and stage only intended files. Do not include credentials, private scanned contents, binaries, or caches. Update relevant docs and CHANGELOG. Keep formatting limited to changed Go files. Pin intentional parser dependencies and preserve module/checksum verification; scanner builds must not silently disable TLS or package integrity checks.
+
+The GitHub Actions job is `test` (**Go checks**) in workflow **CI**. A workflow file is not evidence that remote checks passed. Branch protection/release policy must refer to checks actually observed in GitHub. No license has been selected; resolve licensing with the owner before distributing or accepting contributions under assumed terms. Remote writes and publication require owner authorization.
