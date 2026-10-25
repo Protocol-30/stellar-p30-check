@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Go checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.3'
+          cache: false
+      - name: Unit tests
+        run: go test ./...
+      - name: Race tests
+        run: go test -race ./...
+      - name: Vet
+        run: go vet ./...
+      - name: Build
+        run: go build ./cmd/p30check
+      - name: JSON smoke test
+        run: |
+          python3 - <<'PY'
+          import json
+          import subprocess
+
+          result = subprocess.run(
+              ['./p30check', 'scan', '.', '--format', 'json'],
+              capture_output=True, text=True, check=True,
+          )
+          report = json.loads(result.stdout)
+          assert report['schema_version'] == '1'
+          assert report['coverage']['complete'] is True
+          assert report['coverage']['rules_implemented'] == 0
+          assert report['findings'] == []
+          assert report['limitations']
+          PY

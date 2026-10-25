@@ -2,9 +2,9 @@
 
 This is the supplied **planning snapshot**, with review corrections below. See [README.md](README.md) for the implemented M0/M1 scope and [docs/evidence.md](docs/evidence.md) for this build's source checks and verification limits. Later milestones and the target tree remain proposals.
 
-**Document version:** 0.1 / 2026-10-25  
-**Project:** No final brand selected. Working name: `stellar-p30-check`.  
-**Governance:** The scanner will live in a dedicated GitHub organization, separate from the four other selected Soroban projects. Proposed organization name to be agreed before creation.  
+**Document version:** 0.1 / 2026-10-25
+**Project:** No final brand selected. Working name: `stellar-p30-check`.
+**Governance:** The scanner will live in a dedicated GitHub organization, separate from the four other selected Soroban projects. Proposed organization name to be agreed before creation.
 **Project type:** Open-source static compatibility analysis tool; no contract deployment required.
 
 ## 1. Decision and evidence

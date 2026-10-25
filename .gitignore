@@ -1,0 +1,6 @@
+/p30check
+/bin/
+/.cache/
+*.test
+coverage.out
+.DS_Store
