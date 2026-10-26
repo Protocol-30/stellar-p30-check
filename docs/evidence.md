@@ -81,3 +81,9 @@ The newer [JavaScript grammar v0.25.0](https://github.com/tree-sitter/tree-sitte
 ### Facts versus detection heuristics
 
 The sources above establish SDK API behavior and restricted address domains. They do not by themselves prove target import resolution, binding identity, control flow, reachability, mutation behavior, or which inputs an application actually receives. M3's chosen source patterns and confidence rules are scanner design decisions, not statements made by Stellar. Each implemented pattern must be described and tested with paired positive/negative fixtures; unsupported or ambiguous source forms must not become fabricated high-confidence findings. Ordinary scans use local parser libraries and embedded evidence references offline, without executing target code or fetching SDK/protocol sources.
+
+## M4 CAP-88 evidence — checked October 26, 2026
+
+Fetched the immutable [CAP-88](https://github.com/stellar/stellar-protocol/blob/1ae39233055a0fb94bb737650a39ede8d77d924c/core/cap-0088.md) and [ledger schema](https://github.com/stellar/stellar-xdr/blob/4f524bbac80c781c06e4fb5fc93a2d0d331d6705/Stellar-ledger.x). The official definition adds SIGNED_MS(3) and EMPTY_TX_SET_MS(4) with closeTimeMs; legacy closeTime remains whole seconds and equals integer closeTimeMs/1000. Consecutive ledgers may share the same whole second. The first post-upgrade ledger uses the new arms; this does not assert any network activation date.
+
+The full unchanged schema and two exact arm excerpts are in testdata/cap88 with source URL and SHA-256 provenance. These are schema fixtures, not captured network payloads. Decoder capability classification reuses the previously verified exact SDK rows; it adds no release thresholds. Syntax correlation and confidence are scanner design, distinct from normative protocol facts.

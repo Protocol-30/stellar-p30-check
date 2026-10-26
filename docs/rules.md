@@ -66,21 +66,17 @@ Unsupported syntax adds a source-path limitation and no source finding. Parser/n
 
 ## Next increment: M4 XDR and timestamp analysis
 
-M4 is not implemented. A future increment should:
+M4 implements P30-XDR-001 and P30-TS-001 within a deliberately bounded subset.
 
-1. Correlate effective decoder/capability evidence with actual LedgerHeader/LedgerCloseMeta decoding use in the same affected module/application scope; do not treat unrelated mentions as proof.
-2. Use exact official CAP-88 definitions and paired modern/legacy fixtures with provenance. Do not invent ledger payloads or claim captured post-activation data without evidence.
-3. Keep unproven selections, custom decoders, and ambiguous source use uncertain. Assign severity/confidence from evidence rather than every textual match.
-4. Treat isolated whole-second monotonicity patterns as low-confidence guidance with valid enums; do not infer runtime timing bugs from a word match.
-5. Preserve rooted/offline scans, source-resource bounds, deterministic schema reports, meaningful negative fixtures, and verified gates. Run unit/race/vet/build, real CLI checks, and actual schema validation.
-6. Stop before SARIF/reusable actions, release/publication, or unrelated service deployment.
+- **JS/TS XDR:** top-level named functions with a single direct return of a named ESM-imported `xdr.LedgerHeader.fromXDR(parameter, format?)` or `xdr.LedgerCloseMeta.fromXDR`. Aliases work; namespace/CommonJS, indirect helpers and variable setup are outside this subset. Import shadowing/mutation/escape and duplicate bindings suppress matches. The nearest package manifest scopes capability evidence.
+- **Go XDR:** single-return named nonmethod/nongeneric functions calling the official `xdr.SafeUnmarshalBase64` with a pointer parameter typed as LedgerHeader or LedgerCloseMeta. Local-variable setup and general interface/dataflow resolution are not implemented.
+- Exact modern observed capability rows suppress the decoder warning, without certifying effective runtime selection. Existing dependency warnings retain selection uncertainty. Known scoped nominal legacy selection yields medium/high-confidence XDR review guidance. Other direct supported uses yield medium/low-confidence guidance. Historical-only decoding may be intentional; no M4 finding is high severity.
+- **Timing:** direct strict `<`/`>` comparisons between distinct typed Go LedgerHeader value parameters' `ScpValue.CloseTime` fields yield info/low-confidence P30-TS-001. Non-strict, unrelated clocks, millisecond fields and arbitrary word matches are excluded. No consecutive-ledger relationship or runtime bug is inferred.
+- CAP-88 schema fixtures are pinned official source excerpts, not captured or serialized network ledgers. No target code, regex, decoder, or build command is executed. Source syntax notices and resource failures retain the M3 semantics and budgets. Schema remains2, four rules are available.
 
-## Later proposals
+## Next increment: M5 verification and CI hardening
 
-| Proposed ID | Planned evidence | Boundary |
-|---|---|---|
-| P30-XDR-001 | Effective decoder plus relevant raw-ledger use | M4; correlate within one affected scope |
-| P30-TS-001 | Whole-second monotonicity assumptions | M4; isolated patterns default low confidence |
+Broaden integration/adversarial coverage where evidence warrants it, assess distribution targets, and finish remaining verification. The vulnerability audit remains incomplete until database access works. Do not infer release readiness or program eligibility from local tests. SARIF, reusable actions, deployment and publication remain outside M4.
 
 ## Next increment: M3 W-address analysis
 

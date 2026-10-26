@@ -18,7 +18,7 @@ def scan(target, *flags, expected_exit=0):
     assert result.returncode == expected_exit, (target, result.returncode, result.stderr)
     report = json.loads(result.stdout)
     assert report["schema_version"] == "2"
-    assert report["coverage"]["rules_implemented"] == 2
+    assert report["coverage"]["rules_implemented"] == 4
     assert report["limitations"]
     return report
 
@@ -70,6 +70,12 @@ def main():
             assert finding["confidence"] == confidence
             assert finding["line"] > 0 and finding["evidence"] and finding["references"]
 
+    for fixture, xdr_count, timing_count in [("m4-js-legacy", 1, 0), ("m4-js-modern", 0, 0), ("m4-go-review", 1, 1)]:
+        report = scan(ROOT / "testdata" / fixture, "--fail-on=high")
+        assert report["coverage"]["complete"] is True
+        assert sum(f["rule_id"] == "P30-XDR-001" for f in report["findings"]) == xdr_count
+        assert sum(f["rule_id"] == "P30-TS-001" for f in report["findings"]) == timing_count
+
     with tempfile.TemporaryDirectory(prefix="p30check-smoke-") as temporary:
         report = scan(Path(temporary) / "missing", expected_exit=2)
         assert report["coverage"]["complete"] is False
@@ -78,7 +84,7 @@ def main():
     report = scan(ROOT / "testdata/m2-js-maintenance", "--max-file-bytes=1", expected_exit=2)
     assert report["coverage"]["complete"] is False
     assert report["findings"] == []
-    print("CLI smoke passed: dependency fixtures, 7 address fixtures, actual high-gate exit1, missing root, and exhausted limit.")
+    print("CLI smoke passed: dependency, address, and ledger fixtures; actual high-gate exit1, missing root, and exhausted limit.")
 
 
 if __name__ == "__main__":

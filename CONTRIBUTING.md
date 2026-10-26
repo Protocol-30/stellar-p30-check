@@ -1,6 +1,6 @@
 # Contributing
 
-The current implementation stops at M3: bounded discovery, static dependency inventory, exact-version capabilities, and narrow local W-address guard/helper checks. General interprocedural analysis and raw-XDR/timestamp rules belong to later milestones.
+The current implementation reaches M4: bounded discovery, static dependency inventory, exact-version capabilities, and narrow local W-address guard/helper checks. M4 adds narrow raw-XDR/timestamp review; general interprocedural analysis remains outside the supported subset.
 
 Use Go 1.27.3, CGO_ENABLED=1, and a C compiler for normal builds and race testing. JS/TS uses pinned official Tree-sitter bindings/grammars; no pure-Go disabled-feature fallback exists. Initial setup runs `go mod download` with the pinned `go.mod`/`go.sum`; the scanner itself stays offline. In the prepared cloud environment, source `/workspace/dev-env.sh`, then work in `/workspace/stellar-p30-check`.
 

@@ -46,7 +46,7 @@ func TestAddressFixtureReportsAndGate(t *testing.T) {
 				if err := json.Unmarshal(stdout.Bytes(), &r); err != nil {
 					t.Fatal(err)
 				}
-				if r.SchemaVersion != "2" || !r.Coverage.Complete || r.Coverage.RulesImplemented != 2 || len(r.Findings) != tc.findings {
+				if r.SchemaVersion != "2" || !r.Coverage.Complete || r.Coverage.RulesImplemented != 4 || len(r.Findings) != tc.findings {
 					t.Fatalf("incorrect report: %+v", r)
 				}
 				for _, f := range r.Findings {

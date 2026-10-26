@@ -1,8 +1,8 @@
 # stellar-p30-check
 
-An offline CLI for bounded repository discovery and conservative Stellar Protocol 30 signals. **M3 adds a narrowly scoped W-address rule, P30-ADDR-001**, alongside the existing dependency inventory/capability rule P30-DEP-001.
+An offline CLI for bounded repository discovery and conservative Stellar Protocol 30 signals. **M4 adds scoped raw-ledger XDR review (P30-XDR-001) and whole-second timestamp clues (P30-TS-001)** alongside the dependency and W-address rules.
 
-An empty findings list or exit 0 does **not** certify compatibility. Unsupported formats, unresolved selections, unknown versions, and missing runtime context remain explicit. Address analysis covers only supported local guard/helper patterns; it is not general dataflow analysis. Raw-XDR usage correlation and timestamp checks are not implemented.
+An empty findings list or exit 0 does **not** certify compatibility. Unsupported formats, unresolved selections, unknown versions, and missing runtime context remain explicit. Address analysis covers only supported local guard/helper patterns; it is not general dataflow analysis. Ledger checks cover documented direct decoding and typed Go timestamp patterns only.
 
 ## Build and run
 
@@ -63,7 +63,7 @@ Ignored directory basenames are `.git`, `node_modules`, `vendor`, `dist`, `build
 
 ## Reports and exit codes
 
-Schema **`"2"`** adds `dependencies` and `dependency_warnings` to findings, inventory, limitations, and coverage. Records distinguish declarations, observed versions, resolution/source evidence, effective selection, and uncertainty. `coverage.complete` means processing completed within the chosen filesystem scope, not that every dependency was resolved or every compatibility condition was checked. `coverage.rules_implemented` is 2. See the [report contract](docs/architecture.md#report-contract).
+Schema **`"2"`** adds `dependencies` and `dependency_warnings` to findings, inventory, limitations, and coverage. Records distinguish declarations, observed versions, resolution/source evidence, effective selection, and uncertainty. `coverage.complete` means processing completed within the chosen filesystem scope, not that every dependency was resolved or every compatibility condition was checked. `coverage.rules_implemented` is 4. See the [report contract](docs/architecture.md#report-contract).
 
 | Exit | Meaning |
 |---:|---|
@@ -100,8 +100,10 @@ python3 scripts/smoke.py
 
 The smoke script uses Python 3 standard library; the scanner binary itself has no Python dependency.
 
-The workflow `.github/workflows/ci.yml` defines job `test`, displayed as **Go checks**. Local validation and a checked-in workflow do not establish a successful GitHub Actions run. Read the [M3 build report](docs/m3-build-report.md) for recorded validation status.
+The workflow `.github/workflows/ci.yml` defines job `test`, displayed as **Go checks**. Local validation and a checked-in workflow do not establish a successful GitHub Actions run. Read the [M4 build report](docs/m4-build-report.md) for recorded validation status.
 
 Read [architecture](docs/architecture.md), [limitations](docs/limitations.md), [evidence](docs/evidence.md), [rules and next increment](docs/rules.md), and [contributing](CONTRIBUTING.md). The [M0/M1 build report](docs/build-report.md), [M2 build report](docs/m2-build-report.md), and original planning documents are historical; later planned milestones are not shipped functionality.
 
 The repository has no selected license yet. No release, distribution grant, program acceptance, or compatibility certification is claimed.
+
+M4 examples: `./p30check scan testdata/m4-js-legacy --format json` and `./p30check scan testdata/m4-go-review --format json`. These findings are review guidance and do not trigger the high gate.

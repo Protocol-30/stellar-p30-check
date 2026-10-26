@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — M4 ledger analysis
+
+- Scoped direct raw-ledger decoding review and low-confidence typed whole-second timing clues.
+- Pinned CAP-88 schema excerpts, paired legacy/modern source fixtures and integration checks.
+- Schema2 retained; four available rules. No runtime compatibility certification.
+
 ## Unreleased — M3 narrow W-address analysis
 
 - Add P30-ADDR-001 for supported same-function W-rejecting guards before specific imported W-only helpers, with scoped SDK evidence and conservative confidence.

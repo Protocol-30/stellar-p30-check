@@ -1,8 +1,8 @@
 # Limitations
 
-## What M3 establishes
+## What M4 establishes
 
-M3 adds a narrow local W-address guard/helper rule to dependency parsing/capabilities. It does not establish application runtime behavior. Empty findings, complete discovery, and exit 0 are not Protocol 30 compatibility evidence. `rules_implemented` is 2; general dataflow analysis, raw-XDR usage correlation, and timestamp analysis remain unimplemented.
+M3 adds a narrow local W-address guard/helper rule to dependency parsing/capabilities. It does not establish application runtime behavior. Empty findings, complete discovery, and exit 0 are not Protocol 30 compatibility evidence. `rules_implemented` is 4; ledger analysis covers only the direct decoder/typed timestamp subset in [rules](rules.md). General dataflow and target runtime verification remain unimplemented.
 
 `coverage.complete` means processing completed within the chosen filesystem scope. Deliberate exclusions and unsupported-but-valid formats may coexist with completeness. Inspect `coverage.skipped`, `dependency_warnings`, each dependency's `effective`/`uncertainty`, and `limitations`.
 
@@ -44,6 +44,8 @@ The scan is not an atomic snapshot. Use a quiescent isolated checkout. Rooted op
 
 ## Remaining protocol analysis
 
-W rejection remains correct in account-only G/M fields, AddressObject inputs, and contract storage keys. This increment does not certify those whole domains; it keeps them outside the narrow contradiction proof. Future raw-XDR analysis must correlate decoder and relevant use within the affected scope. No captured post-upgrade ledger fixtures exist here; no synthetic payload is claimed as official network data.
+W rejection remains correct in account-only G/M fields, AddressObject inputs, and contract storage keys. This increment does not certify those whole domains; it keeps them outside the narrow contradiction proof. M4 correlates direct decoder use with scoped metadata; historical inputs, unresolved selections and unknown versions remain review guidance. No captured post-upgrade ledger fixtures exist here; no synthetic payload is claimed as official network data.
 
 The supplied planning vote dates could not be revalidated from the cited Stellar blogs in this environment. See [evidence](evidence.md); votes are not unconditional activation dates.
+
+M4 timing coverage is Go-only. JS/TS time comparisons, Go local-variable decoder setup, custom decoders and restrictive XDR union switches are not analyzed. Known modern *observations* can suppress an XDR warning but never certify the selected runtime; dependency uncertainty remains visible. Both source analyzers may parse a file separately; the two-second JS budget is per analyzer/file.

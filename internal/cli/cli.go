@@ -22,8 +22,8 @@ const usage = `Usage:
   p30check version
   p30check --help
 
-M3 checks SDK dependencies and narrowly scoped W-address rejection patterns.
-Unresolved selections are warnings; raw-XDR and timestamp checks are not implemented.
+M4 checks SDK dependencies, W-address guards, and narrow ledger decoder/timing patterns.
+Unresolved selections and ambiguous source patterns remain review guidance.
 An empty report does not establish compatibility.
 
 Scan options (flags may precede or follow the path):
@@ -175,17 +175,18 @@ func scan(cfg scanArgs, stdout, stderr io.Writer, opts Options) int {
 	}
 	r := report.New(target, opts.Version, opts.Now())
 	r.Limitations = []string{
-		"M3 implements P30-DEP-001 dependency capability checks and P30-ADDR-001 narrow local W-address flow analysis. Raw-XDR usage and timestamp assumptions are not analyzed.",
+		"M4 implements dependency, address, raw-XDR-use, and whole-second timing rules within documented syntax subsets.",
 		"Capability evidence covers exact verified releases only. Manifest constraints, unavailable graphs, replacements, unsupported locks, and uncertain registry provenance do not prove an effective SDK version.",
 		"Effective dependency records mean supported nominal lock/declaration agreement, not installed-artifact verification. npm registry URLs can use a configured registry; credential-bearing registry configuration is not read.",
 		"Dependency capability gaps remain medium-severity review guidance. High address findings require a same-parameter rejecting guard before a W-only SDK sink and verified nominal SDK support in the nearest package scope.",
 		"Address analysis recognizes only documented straight-line literal guard/sink patterns and standard built-in behavior. Unsupported syntax is reported as a limitation; unrecognized or indirect flows may be missed. Runtime monkey-patching and installed-artifact identity are not verified.",
+		"Ledger analysis recognizes direct named-ESM LedgerHeader/LedgerCloseMeta.fromXDR returns and typed Go SafeUnmarshalBase64 pointer parameters. Timing clues cover strict comparisons of typed Go whole-second ledger close fields only; other flows may be missed.",
 		"An empty findings list is not evidence of Protocol 30 compatibility.",
 		"Completeness describes only the selected filesystem scope; ignored, generated, symlink, and nonregular entries are excluded. Concurrent file changes are not a stable snapshot.",
 	}
 	discovered, scanErr := opts.Scan(target, cfg.limits)
 	r.Coverage = report.Coverage{
-		Complete: discovered.Complete, RulesImplemented: 2,
+		Complete: discovered.Complete, RulesImplemented: 4,
 		FilesScanned: len(discovered.Files), EntriesVisited: discovered.EntriesVisited,
 		BytesRead: discovered.BytesRead,
 	}
@@ -207,7 +208,15 @@ func scan(cfg scanArgs, stdout, stderr io.Writer, opts Options) int {
 		r.Limitations = append(r.Limitations, sourceLimitations...)
 		sourceErr = err
 		if err == nil {
-			r.Findings = append(r.Findings, addressFindings...)
+			ledgerFindings, ledgerNotes, ledgerErr := rules.AnalyzeLedgers(discovered.Files, r.Dependencies)
+			r.Limitations = append(r.Limitations, ledgerNotes...)
+			sourceErr = ledgerErr
+			if ledgerErr == nil {
+				r.Findings = append(r.Findings, addressFindings...)
+				r.Findings = append(r.Findings, ledgerFindings...)
+			} else {
+				r.Limitations = append(r.Limitations, "Source findings were withheld because ledger analysis failed or exhausted a resource limit.")
+			}
 		} else {
 			r.Limitations = append(r.Limitations, "Address findings were withheld because source analysis exceeded a resource limit or failed.")
 		}

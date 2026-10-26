@@ -69,4 +69,8 @@ P30-DEP-001 can emit one finding when uncertainty-free supported metadata nomina
 
 ## Scope relative to the original plan
 
-M3 adds local address-analysis helpers/tests and source fixtures to the M2 packages. It still has no interprocedural/full-program analysis, raw-XDR decoder/use correlation, timestamp rules, captured ledger fixtures, SDK runtime dependency, published reusable action, or release artifacts. The original plan and M0/M1/M2 reports are historical; [m3-build-report.md](m3-build-report.md) records this increment's validation. Deliberate incompatible fixtures remain in normal discovery scope, so a high-gated scan of this whole repository may correctly exit 1.
+M3 adds local address-analysis helpers/tests and source fixtures to the M2 packages. M4 adds the narrow decoder-use and timestamp stage below. Full-program analysis, captured ledger payloads, SDK runtime dependencies, reusable actions and releases remain outside this increment. The original plan and M0/M1/M2 reports are historical; [m3-build-report.md](m3-build-report.md) records this increment's validation. Deliberate incompatible fixtures remain in normal discovery scope, so a high-gated scan of this whole repository may correctly exit 1.
+
+## M4 ledger stage
+
+After address analysis succeeds, `AnalyzeLedgers` parses bounded source, correlates direct uses with the nearest dependency scope, and emits conservative decoder/timing findings. Any ledger resource failure withholds source findings and sets incomplete/exit2. It reuses syntax helpers, not target execution. See [rules](rules.md) for supported shapes and [M4 report](m4-build-report.md).

@@ -35,3 +35,5 @@ and Go-minimum fixtures cannot prove selected SDK versions and remain medium
 confidence. Scope and control-flow adversarial cases live in the rule tests.
 No fixture application is installed, type-checked, or executed by the scanner.
 Published SDK/CAP source provenance is in [M3 evidence](../docs/evidence.md).
+
+M4 paired JS fixtures use existing exact legacy/modern metadata and direct raw decoding calls. The Go fixture uses unresolved selection and a typed whole-second comparison. cap88 contains exact official schema source/excerpts; no binary ledger payload or captured network data is claimed.
