@@ -39,7 +39,7 @@ func TestFixtureReports(t *testing.T) {
 				if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
 					t.Fatal(err)
 				}
-				if got.SchemaVersion != report.SchemaVersion || got.CheckedAtUTC != fixedNow.Format(time.RFC3339Nano) || !got.Coverage.Complete || got.Coverage.RulesImplemented != 1 {
+				if got.SchemaVersion != report.SchemaVersion || got.CheckedAtUTC != fixedNow.Format(time.RFC3339Nano) || !got.Coverage.Complete || got.Coverage.RulesImplemented != 2 {
 					t.Fatalf("incorrect report: %+v", got)
 				}
 				if got.Findings == nil || len(got.Findings) != 0 || len(got.Inventory) != 2 || len(got.Limitations) == 0 {

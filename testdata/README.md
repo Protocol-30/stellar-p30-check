@@ -21,3 +21,17 @@ sources in [docs/evidence.md](../docs/evidence.md).
 `m2-go-observed` is a declared minimum with no proven selected Go build list.
 `m2-js-unresolved` has a range and no lockfile. Both must remain uncertain.
 The older `m1-*` fixtures exercise discovery and deterministic report behavior.
+
+The `m3-*` fixtures are deliberately small local source-analysis examples. The
+bad JS guard rejects every W-prefixed string immediately before a W-only
+`StrKey.decodeMuxedContract` call; the paired modern guard accepts the W prefix.
+Account-only/C-only helpers are negative cases. The SAC destination fixture
+models a potentially intentional account-only application policy and yields
+review guidance, never a high gate. Ambient TypeScript declarations model the
+builder inputs without pretending to initialize an actual transaction.
+
+SDK lock metadata is reused from the verified 17.3.0 fixture above. Missing-lock
+and Go-minimum fixtures cannot prove selected SDK versions and remain medium
+confidence. Scope and control-flow adversarial cases live in the rule tests.
+No fixture application is installed, type-checked, or executed by the scanner.
+Published SDK/CAP source provenance is in [M3 evidence](../docs/evidence.md).

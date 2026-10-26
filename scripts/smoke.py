@@ -18,7 +18,7 @@ def scan(target, *flags, expected_exit=0):
     assert result.returncode == expected_exit, (target, result.returncode, result.stderr)
     report = json.loads(result.stdout)
     assert report["schema_version"] == "2"
-    assert report["coverage"]["rules_implemented"] == 1
+    assert report["coverage"]["rules_implemented"] == 2
     assert report["limitations"]
     return report
 
@@ -50,6 +50,26 @@ def main():
         assert report["dependencies"][0]["effective"] is False
         assert report["dependency_warnings"]
 
+    for fixture, count, severity, confidence in [
+        ("m3-js-reject-w", 1, "high", "high"),
+        ("m3-js-allow-w", 0, "", ""),
+        ("m3-js-account-only", 0, "", ""),
+        ("m3-js-negative-contexts", 0, "", ""),
+        ("m3-js-scope-uncertain", 1, "medium", "medium"),
+        ("m3-go-review", 1, "medium", "medium"),
+        ("m3-js-sac-policy", 1, "medium", "low"),
+    ]:
+        target = ROOT / "testdata" / fixture
+        default = scan(target)
+        assert len(default["findings"]) == count
+        gated = scan(target, "--fail-on=high", expected_exit=1 if severity == "high" else 0)
+        assert gated["coverage"]["complete"] is True
+        for finding in gated["findings"]:
+            assert finding["rule_id"] == "P30-ADDR-001"
+            assert finding["severity"] == severity
+            assert finding["confidence"] == confidence
+            assert finding["line"] > 0 and finding["evidence"] and finding["references"]
+
     with tempfile.TemporaryDirectory(prefix="p30check-smoke-") as temporary:
         report = scan(Path(temporary) / "missing", expected_exit=2)
         assert report["coverage"]["complete"] is False
@@ -58,7 +78,7 @@ def main():
     report = scan(ROOT / "testdata/m2-js-maintenance", "--max-file-bytes=1", expected_exit=2)
     assert report["coverage"]["complete"] is False
     assert report["findings"] == []
-    print("CLI smoke passed: 3 capability fixtures, 2 uncertain selections, missing root, and exhausted limit.")
+    print("CLI smoke passed: dependency fixtures, 7 address fixtures, actual high-gate exit1, missing root, and exhausted limit.")
 
 
 if __name__ == "__main__":

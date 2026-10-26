@@ -4,6 +4,8 @@ if [[ -x /workspace/.tools/go1.27.3/go/bin/go ]]; then
   export PATH="/workspace/.tools/go1.27.3/go/bin:$PATH"
   export GOCACHE="${GOCACHE:-/workspace/.cache/go-build}"
   export GOPATH="${GOPATH:-/workspace/.cache/gopath}"
+  # The JS/TS source grammars are native Tree-sitter parsers.
+  export CGO_ENABLED=1
 fi
 # Never download or switch compilers implicitly when inspecting a repository.
 export GOTOOLCHAIN=local

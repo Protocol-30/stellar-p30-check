@@ -1,8 +1,8 @@
 # Limitations
 
-## What M2 establishes
+## What M3 establishes
 
-M2 adds static dependency parsing, exact-version capability annotations, and one conservative dependency rule. It does not establish application runtime behavior. Empty findings, complete discovery, and exit 0 are not Protocol 30 compatibility evidence. `rules_implemented` is 1; address heuristics, raw-XDR usage correlation, and timestamp analysis remain unimplemented.
+M3 adds a narrow local W-address guard/helper rule to dependency parsing/capabilities. It does not establish application runtime behavior. Empty findings, complete discovery, and exit 0 are not Protocol 30 compatibility evidence. `rules_implemented` is 2; general dataflow analysis, raw-XDR usage correlation, and timestamp analysis remain unimplemented.
 
 `coverage.complete` means processing completed within the chosen filesystem scope. Deliberate exclusions and unsupported-but-valid formats may coexist with completeness. Inspect `coverage.skipped`, `dependency_warnings`, each dependency's `effective`/`uncertainty`, and `limitations`.
 
@@ -17,9 +17,20 @@ M2 adds static dependency parsing, exact-version capability annotations, and one
 
 JS SDK 16.4.0 can decode muxed-contract XDR while its higher-level W helpers reject it. One blanket CAP-84-support boolean would hide this distinction. Modern observed SDK support also says nothing about custom address/XDR code.
 
+## Address-analysis boundaries
+
+- **Local proof only:** a supported guard must reject W immediately before a specific imported W-only helper consumes the same simple parameter. Generic regex/prefix validators alone are ignored. Aliased/interprocedural values, unsupported expressions, reassignment, shadowing, ambiguous bindings, nested/alternate flow, and side-effecting conditions suppress proof rather than being guessed.
+- **JS/TS context:** high/high requires supported local syntax/import/flow plus uncertainty-free nominal SDK 17.3.0 W support from the nearest current package boundary. Correct source imports alone are not enough, and metadata is not installed-artifact proof. Unresolved selection lowers W-only findings to medium/medium.
+- **Go context:** supported direct strkey W-only helpers can produce medium/medium guidance, but Go selected versions remain unresolved under the dependency model. No Go high gate is inferred from a declared minimum. Dot/fork imports, methods/generic functions, closures, multi-step flows, and unsupported constructs are not general analysis targets.
+- **SAC destination policy:** imported TransactionBuilder instance calls use the first positional destination in addSacTransferOperation. A narrow supported guard can produce medium/low review guidance only. An account-only business policy may be deliberate; do not automatically expand it to W.
+- **Required negative contexts:** classic account G/M inputs, C-only decoders, Go MuxedContract.SetContractID, AddressObject inputs, and contract storage keys do not become high findings merely for rejecting W. Supported W-accepting guards remain negative. Comments/string text, type-only or shadowed imports, mutation, and bypass paths must not be promoted to executable proof.
+- **Parsing and coverage:** JS/TS/JSX/TSX parsing is bounded to 2 seconds per file, source AST traversal to 200000 nodes per file. Invalid/unsupported source syntax adds a per-file limitation without a source finding; resource exhaustion is an incomplete error/exit 2. No full target compilation or type checking is performed. Unsupported patterns can be false negatives even when syntax parsed successfully; an empty source finding set is not an all-clear.
+
+Normal builds require CGO_ENABLED=1 and a C compiler for the pinned Tree-sitter parsers. There is no pure-Go build that silently disables source analysis. Source notices use `limitations`, not `dependency_warnings`. Address analysis does not run from incomplete filesystem/dependency-metadata inventory. The tree is not a stable snapshot and cross-file dynamic behavior is not proven.
+
 ## File scope
 
-Recognized manifests include `go.mod`, `go.work`, `go.sum`, `go.work.sum`, `package.json`, `package-lock.json`, `npm-shrinkwrap.json`, `yarn.lock`, `pnpm-lock.yaml`, and `pnpm-workspace.yaml`. Recognized sources have `.go`, `.js`, `.jsx`, `.ts`, or `.tsx` extensions; source contents are inventoried, not analyzed for address or XDR use. Files are data, never instructions for target commands.
+Recognized manifests include `go.mod`, `go.work`, `go.sum`, `go.work.sum`, `package.json`, `package-lock.json`, `npm-shrinkwrap.json`, `yarn.lock`, `pnpm-lock.yaml`, and `pnpm-workspace.yaml`. Recognized sources have `.go`, `.js`, `.jsx`, `.ts`, or `.tsx` extensions; source contents are inventoried and considered only for the supported local address subset, not general address or raw-XDR usage analysis. Files are data, never instructions for target commands.
 
 Excluded directory basenames are `.git`, `node_modules`, `vendor`, `dist`, `build`, `.next`, `coverage`, and `.cache`. Unrelated extensions are outside scope. Child symlinks and special files are skipped; the root cannot itself be a symlink, and there is no symlink-following option.
 
@@ -33,6 +44,6 @@ The scan is not an atomic snapshot. Use a quiescent isolated checkout. Rooted op
 
 ## Remaining protocol analysis
 
-W rejection is correct in account-only G/M fields, AddressObject inputs, and contract storage keys. Future address rules need proven W-capable context and negative fixtures for these cases. Raw-XDR analysis must correlate decoder and relevant use within the affected scope. No captured post-upgrade ledger fixtures exist here; no synthetic payload is claimed as official network data.
+W rejection remains correct in account-only G/M fields, AddressObject inputs, and contract storage keys. This increment does not certify those whole domains; it keeps them outside the narrow contradiction proof. Future raw-XDR analysis must correlate decoder and relevant use within the affected scope. No captured post-upgrade ledger fixtures exist here; no synthetic payload is claimed as official network data.
 
 The supplied planning vote dates could not be revalidated from the cited Stellar blogs in this environment. See [evidence](evidence.md); votes are not unconditional activation dates.

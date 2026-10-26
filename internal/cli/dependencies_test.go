@@ -43,7 +43,7 @@ func TestDependencyCapabilityReports(t *testing.T) {
 				if err := json.Unmarshal(stdout.Bytes(), &r); err != nil {
 					t.Fatal(err)
 				}
-				if !r.Coverage.Complete || r.Coverage.RulesImplemented != 1 || r.SchemaVersion != report.SchemaVersion || len(r.Dependencies) != 1 || len(r.Findings) != tc.findings {
+				if !r.Coverage.Complete || r.Coverage.RulesImplemented != 2 || r.SchemaVersion != report.SchemaVersion || len(r.Dependencies) != 1 || len(r.Findings) != tc.findings {
 					t.Fatalf("incorrect report: %+v", r)
 				}
 				d := r.Dependencies[0]
