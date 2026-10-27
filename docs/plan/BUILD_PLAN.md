@@ -115,19 +115,19 @@ Findings MUST have: `rule_id`, `severity` (`info|medium|high`), `confidence` (`l
 
 Targets assume a focused solo/small-team effort. They are **planning targets, not promises**. If validation gates fail, ship a narrower honest tool rather than claiming completeness.
 
-| Milestone | Target window (2026) | Work | Exit gate |
+| DripWave phase / step | Target window (2026) | Work | Exit gate |
 |---|---|---|---|
-| M0 — Evidence + design freeze | Oct 25–26 | confirm source URLs, official SDK package/version, Go toolchain; choose rules; fixtures taxonomy; AGENTS | `SOURCES.md` current, no unverified version claims, examples documented |
-| M1 — CLI skeleton | Oct 26–27 | `scan`, walker, reporter, deterministic JSON, error codes | builds, unit tests, 2 fixture reports deterministic |
-| M2 — Dependency/capability rules | Oct 27–28 | Go/JS package inspection, capability matrix, partial lock parsing | distinguishes JS 16.4.0 (XDR yes/W no), JS 17.3.0 (both), Go 0.8.0 P30 |
-| M3 — W address analysis | Oct 28–29 | address-specific patterns and tests | catches rejecting samples without flagging safe samples as high |
-| M4 — XDR and timing analysis | Oct 29–30 | CAP-88 code/dependency correlation, low-confidence timing clues | at least 2 representative CAP-88 fixtures; no blanket claims |
-| M5 — Verification/CI | Oct 30–Nov 1 | integration tests, race checks, error robustness, CI workflow, fixture attribution | green test suite; clean repo no high-confidence findings |
-| M6 — MVP release preparation | Nov 1–2 | docs, quickstart, demo, changelog, threat limitations, candidate tag | repeatable 3-minute demo, documented migration fixes, versioned artifact |
-| M7 — Testnet feedback | From Nov 3 vote onward | recheck activation status; run regression/real ledger examples when possible | compare predicted failures with actual fixtures; revise rules |
-| M8 — Mainnet hardening | Before Nov 23 vote | SARIF/action candidate, broader source coverage, release checks | documented CI integration and follow-up findings |
+| Phases 1–5 — Evidence + design freeze | Oct 25–26 | confirm source URLs, official SDK package/version, Go toolchain; choose rules; fixtures taxonomy; AGENTS | `SOURCES.md` current, no unverified version claims, examples documented |
+| Phase 8.1 — Scanner core | Oct 26–27 | `scan`, walker, reporter, deterministic JSON, error codes | builds, unit tests, 2 fixture reports deterministic |
+| Phase 8.2 — SDK version check | Oct 27–28 | Go/JS package inspection, capability matrix, partial lock parsing | distinguishes JS 16.4.0 (XDR yes/W no), JS 17.3.0 (both), Go 0.8.0 P30 |
+| Phase 8.3 — W address check | Oct 28–29 | address-specific patterns and tests | catches rejecting samples without flagging safe samples as high |
+| Phase 8.4 — XDR and close-time checks | Oct 29–30 | CAP-88 code/dependency correlation, low-confidence timing clues | at least 2 representative CAP-88 fixtures; no blanket claims |
+| Phase 8.5 — Verification/CI | Oct 30–Nov 1 | integration tests, race checks, error robustness, CI workflow, fixture attribution | green test suite; clean repo no high-confidence findings |
+| Phases 9–11 — Release, repo hygiene, docs | Nov 1–2 | docs, quickstart, demo, changelog, threat limitations, candidate tag | repeatable 3-minute demo, documented migration fixes, versioned artifact |
+| Phase 13 — Testnet feedback | From Nov 3 vote onward | recheck activation status; run regression/real ledger examples when possible | compare predicted failures with actual fixtures; revise rules |
+| Phase 13 — Mainnet hardening | Before Nov 23 vote | SARIF/action candidate, broader source coverage, release checks | documented CI integration and follow-up findings |
 
-**No-code status now:** M0 research/planning is underway, but the full verified-source fixture inventory and actual implementation are not complete.
+**No-code status now:** Phases 1–5 research/planning is underway, but the full verified-source fixture inventory and actual implementation are not complete.
 
 ## 7. Acceptance test matrix
 
@@ -161,4 +161,4 @@ Targets assume a focused solo/small-team effort. They are **planning targets, no
 
 ## 10. First action for Codex
 
-Read `AGENTS.md`, `CODEX_TASK.md`, `SOURCES.md` and this plan. Implement M0 and M1 only. Do not provision GitHub, generate a frontend, deploy contracts, or claim that the P30 engine is complete. Return a concise evidence table, the actual source tree, tests executed, failing checks, and next commit/issue sequence.
+Read `AGENTS.md`, `CODEX_TASK.md`, `SOURCES.md` and this plan. Implement Phases 1–5 evidence and Phase 8 step 8.1 only. Do not provision GitHub, generate a frontend, deploy contracts, or claim that the P30 engine is complete. Return a concise evidence table, the actual source tree, tests executed, failing checks, and next commit/issue sequence.

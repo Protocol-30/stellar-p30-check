@@ -39,5 +39,5 @@ Build an **offline, read-only Go CLI** for repo-level Stellar Protocol 30 compat
 - Architecture, report schema, exit codes: `docs/architecture.md`. Limitations: `docs/limitations.md`.
 - The original DripWave skill is not committed here; ask the owner for it if a process question needs it.
 
-## Milestone status
-M0 (evidence) and M1 (CLI, walker, reports, tests) are done. Next is M2 (`P30-DEP-001`): implement it only on facts recorded in `docs/evidence.md`, with positive and negative fixtures. Stop and report before broad heuristics or external write actions.
+## Where the project is
+Progress is tracked by DripWave phase in `docs/roadmap.md`. Phases 1–7 are done; Phase 8 (build and test) is in progress, with steps 8.1 (scanner core) and 8.2 (SDK version check, `P30-DEP-001`) done. Next is step 8.3 (`P30-ADDR-001`, `W` address check): implement only on facts recorded in `docs/evidence.md`, with positive and negative fixtures. Stop and report before broad heuristics or external write actions.
