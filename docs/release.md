@@ -9,7 +9,7 @@ These are owner decisions:
 
 - [x] **Name.** `stellar-p30-check` (repository and Go module) and `p30check` (binary), confirmed by the owner on 2026-10-27.
 - [x] **License.** Apache License 2.0 (`LICENSE`), added 2026-10-27; the release archives include it.
-- [ ] **Default branch.** Set the repository's default branch to `main`. It is currently the first branch pushed (`claude/new-session-4ugmgx`), so `go install ...@latest` and the repository front page show that branch instead of `main`.
+- [x] **Default branch.** Set to `main` by the owner on 2026-10-27.
 
 ## Steps
 
@@ -37,9 +37,11 @@ These are owner decisions:
 5. Review the draft:
    - the asset list (6 archives and `SHA256SUMS`);
    - the notes;
-   - one downloaded archive, checked against `SHA256SUMS` and run with `p30check version`.
+   - the asset checksums, against a local `scripts/release-build.sh` run with the Go version named in the notes (builds are reproducible).
 
-   Then publish it.
+   Then publish it: click **Publish release** on the draft, or run the
+   `release` workflow by hand (Actions → release → Run workflow) with the
+   tag. The manual run publishes only a draft that has all seven assets.
 
 If the draft is wrong, delete it and the tag, fix the problem on `main`, and
 tag again. Do not move a tag after its release is published.

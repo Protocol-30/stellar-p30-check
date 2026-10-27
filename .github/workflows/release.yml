@@ -1,11 +1,18 @@
 name: release
 
-# Runs only when a maintainer pushes a version tag such as v0.1.0. It
-# creates a *draft* GitHub release; a maintainer reviews the assets and
-# publishes it by hand. See docs/release.md.
+# A pushed version tag such as v0.1.0 builds the archives and creates a
+# *draft* GitHub release. After review, a maintainer publishes it either in
+# the GitHub UI or by running this workflow by hand ("Run workflow") with the
+# tag, which publishes the draft only if it has all seven assets.
+# See docs/release.md.
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag of the reviewed draft release to publish, e.g. v0.1.0"
+        required: true
 
 permissions:
   contents: read
@@ -13,6 +20,7 @@ permissions:
 jobs:
   release:
     name: build and draft release
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write # create the draft release and upload assets
@@ -41,3 +49,31 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" dist/*.tar.gz dist/*.zip dist/SHA256SUMS \
             --draft --verify-tag --title "$GITHUB_REF_NAME" --notes-file release-notes.md
+
+  publish:
+    name: publish reviewed draft
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # publish the draft release
+    steps:
+      - name: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          case "$TAG" in
+            v[0-9]*) ;;
+            *) echo "not a version tag: $TAG" >&2; exit 1 ;;
+          esac
+          draft="$(gh release view "$TAG" --json isDraft --jq .isDraft)"
+          if [ "$draft" != "true" ]; then
+            echo "$TAG is not a draft release" >&2; exit 1
+          fi
+          assets="$(gh release view "$TAG" --json assets --jq '.assets | length')"
+          if [ "$assets" -ne 7 ]; then
+            echo "expected 7 assets (6 archives and SHA256SUMS), found $assets" >&2; exit 1
+          fi
+          gh release edit "$TAG" --draft=false --latest
+          gh release view "$TAG" --json url,isDraft,publishedAt
