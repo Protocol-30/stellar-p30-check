@@ -14,7 +14,8 @@ CLI flags ──> walker ──> rules ──> report.New ──> text | JSON �
 | `internal/cli` | Argument parsing (flags before or after the path), usage errors, exit-code policy (`Gated`, `ExitCode`). |
 | `internal/scan` | Orchestration: walk, run rules, validate findings, add coverage warnings, build the report. Owns `Limitations`. |
 | `internal/walker` | Root-bound discovery. Stats entries only; never reads contents. |
-| `internal/rules` | `Rule` interface and the shipped rule set (`Default()`, empty in this build). |
+| `internal/rules` | `Rule` interface, the shipped rule set (`Default()`) and the rules themselves. |
+| `internal/deps` | `go.mod`, `package.json` and npm lockfile parsers, semver, and the sourced SDK capability table. |
 | `internal/report` | Versioned report model, sorting, summary, text and JSON renderers. |
 
 ## Walker
@@ -33,7 +34,8 @@ CLI flags ──> walker ──> rules ──> report.New ──> text | JSON �
   resolved target is inside the root; symlinked directories are never
   followed, which rules out cycles.
 - Ceilings: file size (`--max-file-bytes`, default 2 MiB; larger files are
-  skipped and listed), relevant files (`--max-files`, default 20000), total
+  skipped and listed; default 16 MiB, since npm lockfiles in large repos run to
+  several MiB), relevant files (`--max-files`, default 20000), total
   entries (500000) and depth (64). Hitting a count or depth ceiling is an
   error (exit 2) with no partial report, so a truncated scan cannot look
   complete.
@@ -45,7 +47,7 @@ CLI flags ──> walker ──> rules ──> report.New ──> text | JSON �
 ```go
 type Rule interface {
     ID() string
-    Check(ctx context.Context, in rules.Input) ([]report.Finding, error)
+    Check(ctx context.Context, in rules.Input) (rules.Output, error) // Output{Findings, Warnings}
 }
 ```
 
@@ -53,11 +55,21 @@ type Rule interface {
 clean root-relative paths (`io/fs.ValidPath`), refuses any path that
 traverses a symlink, and refuses files over the size limit. Every finding is
 checked with `Finding.Validate`; an invalid finding or a rule error fails the
-scan (exit 2) rather than producing a misleading report.
+scan (exit 2) rather than producing a misleading report. A problem with one
+scanned file (unreadable, malformed JSON, broken `go.mod`) is a warning, so
+it cannot abort the scan.
 
-No rules ship yet. When the rule set is empty the report carries a `no-rules`
-warning, and every discovered manifest gets a `check-not-implemented`
-warning until `P30-DEP-001` exists.
+Shipped rules are listed in [rules.md](rules.md). Coverage gaps are always
+reported:
+
+| Warning code | When |
+|--------------|------|
+| `rules-not-implemented` | A planned rule (`rules.Planned`) is not in this build |
+| `no-rules` | The rule set is empty (only with injected rule sets in tests) |
+| `check-not-implemented` | Per manifest, when `P30-DEP-001` is absent |
+| `no-relevant-files` | Nothing relevant was found under the target |
+| `manifest-unparsed` | A manifest or lockfile could not be read or parsed |
+| `lockfile-not-parsed` | A `yarn.lock` or `pnpm-lock.yaml` exists; it is not read yet |
 
 ## Report schema (`schema_version` "1")
 
@@ -105,7 +117,7 @@ non-printable characters, so file names cannot inject terminal escapes.
 - `internal/scan` was added to keep orchestration out of the CLI package.
 - `internal/report` uses `model.go` + `render.go` instead of separate
   `text.go`/`json.go`.
-- `internal/deps` and rule files are not created until their milestones; no
+- Rule files are created in the Phase 8 step that implements them; no
   empty placeholders.
 - Golden reports live in `testdata/golden/`; discovery fixtures in
   `testdata/fixtures/`.

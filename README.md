@@ -1,14 +1,15 @@
 # stellar-p30-check
 
-An offline, read-only command-line scanner that will flag Stellar
+An offline, read-only command-line scanner that flags Stellar
 **Protocol 30** compatibility risks in Go and JavaScript/TypeScript
 repositories: outdated SDKs, address validation that rejects CAP-84 `W`
 muxed-contract addresses, and ledger-header decoding that predates CAP-88.
 
-> **Status: v0.1.0-dev, milestone M1.** The CLI, safe file discovery and
-> versioned reports work. **No compatibility rules are implemented yet**, so
-> a scan today is an inventory of relevant files and makes no compatibility
-> claim. See [docs/limitations.md](docs/limitations.md).
+> **Status: v0.1.0-dev, DripWave Phase 8 (build), step 8.2 done.** One rule
+> ships: [P30-DEP-001](docs/rules.md#p30-dep-001-stellar-sdk-version) checks
+> Stellar SDK versions. Address and XDR source checks are not built yet, and
+> every report says so. See [docs/roadmap.md](docs/roadmap.md) and
+> [docs/limitations.md](docs/limitations.md).
 
 `stellar-p30-check` is a working name.
 
@@ -22,24 +23,39 @@ go build -o p30check ./cmd/p30check
 ./p30check scan path/to/your/repo --format json
 ```
 
-Example (from this repository's fixtures):
+Example, on a fixture that pins `@stellar/stellar-sdk` 16.4.0:
 
 ```text
 $ ./p30check scan testdata/fixtures/js-app
 p30check 0.1.0-dev - Stellar Protocol 30 compatibility scan (report schema 1)
 Target:     testdata/fixtures/js-app
 ...
-Rules run:  0
+Rules run:  1
 
-Findings (0): none reported
-
-Warnings (2):
-  [check-not-implemented] package.json: dependency capability check P30-DEP-001 is not implemented yet; SDK versions in this file were not evaluated
-  [no-rules] this build ships no Protocol 30 compatibility rules; the report is an inventory only and makes no compatibility claim
+Findings (1): 0 high, 1 medium, 0 info
+  [medium severity, high confidence] P30-DEP-001 package.json:5
+      @stellar/stellar-sdk 16.4.0: decodes Protocol 30 ledgers but cannot handle W muxed-contract addresses (CAP-84)
+      evidence: package.json dependencies declares "@stellar/stellar-sdk": "16.4.0"
+      fix:      Upgrade to @stellar/stellar-sdk 17.3.0 or later. Stay on 16.4.x only if the app never parses, validates or displays contract addresses.
 ...
+Warnings (1):
+  [rules-not-implemented] not checked by this build: P30-ADDR-001, P30-XDR-001, P30-TS-001; see docs/roadmap.md
 ```
 
 Full outputs: [testdata/golden/](testdata/golden/).
+
+## What it checks today
+
+| SDK | Flagged |
+|-----|---------|
+| `github.com/stellar/go-stellar-sdk` | before v0.8.0 |
+| `github.com/stellar/go` | always (deprecated, no Protocol 30 support) |
+| `@stellar/stellar-sdk` | before 17.3.0 (16.4.x is medium: ledgers decode, `W` addresses do not) |
+| `@stellar/stellar-base`, `stellar-sdk`, `stellar-base` | published versions have no Protocol 30 support |
+
+Versions are read from `go.mod`, `package-lock.json` / `npm-shrinkwrap.json`
+and `package.json`. Details and known false positives:
+[docs/rules.md](docs/rules.md).
 
 ## Usage
 
@@ -47,7 +63,7 @@ Full outputs: [testdata/golden/](testdata/golden/).
 p30check scan <path> [flags]
   --format text|json        output format (default text)
   --fail-on none|high       exit 1 when a high-severity, high-confidence finding is reported (default none)
-  --max-file-bytes N        skip files larger than N bytes (default 2097152)
+  --max-file-bytes N        skip files larger than N bytes (default 16777216)
   --max-files N             fail if more than N relevant files are found (default 20000)
   --follow-symlinks         include symlinked files whose target stays inside <path>
 p30check version
@@ -64,29 +80,22 @@ Flags may come before or after the path.
 
 ## Safety
 
-- Reads files only. Never executes, builds or imports scanned code; no network.
+- Reads files only. Never executes, builds or imports scanned code, and
+  never runs a package manager; no network.
 - Stays inside `<path>`: symlinks are not followed by default, and never
   outside the root.
 - Bounded by file-size, file-count, entry-count and depth ceilings.
+- A malformed manifest produces a warning, not a crash.
 - Reports use root-relative paths; text output escapes control characters.
-
-## Planned rules
-
-Proposed, not implemented — see [docs/plan/BUILD_PLAN.md](docs/plan/BUILD_PLAN.md):
-
-| ID | Checks |
-|----|--------|
-| P30-DEP-001 | Go/JS Stellar SDK versions against a sourced capability matrix |
-| P30-ADDR-001 | Address validation that omits the `W` prefix |
-| P30-XDR-001 | Raw ledger-header decoding with a pre-P30 XDR library |
-| P30-TS-001 | Assumptions of strictly increasing whole-second close times |
 
 ## Documentation
 
+- [docs/roadmap.md](docs/roadmap.md) — where the project is, by DripWave phase
+- [docs/rules.md](docs/rules.md) — rule catalog
 - [docs/architecture.md](docs/architecture.md) — pipeline, report schema, exit codes
 - [docs/limitations.md](docs/limitations.md) — what a scan can and cannot tell you
 - [docs/evidence.md](docs/evidence.md) — verified Protocol 30 / SDK facts with sources and dates
-- [docs/plan/](docs/plan/) — build plan and backlog
+- [docs/plan/](docs/plan/) — original build plan and backlog
 - [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [CHANGELOG.md](CHANGELOG.md)
 
 ## License
