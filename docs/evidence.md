@@ -8,7 +8,7 @@ Last checked: **2026-10-25** (UTC), from a sandbox whose network proxy allowed
 `raw.githubusercontent.com`, `proxy.golang.org` and `registry.npmjs.org`, but
 refused `stellar.org`, `github.com` web pages and `go.dev`.
 
-## Verified in this repository's M0 session
+## Verified for Phases 1–5 (2026-10-25)
 
 | # | Fact | Source (as fetched) | How it was checked |
 |---|------|---------------------|--------------------|
@@ -21,6 +21,23 @@ refused `stellar.org`, `github.com` web pages and `go.dev`.
 | E7 | npm `@stellar/stellar-sdk` dist-tags: `latest` = 17.4.0 (2026-10-25T11:30:46Z), `lts-16` = 16.4.1. 16.4.0 published 2026-10-21T20:44:03Z; 17.3.0 published 2026-10-21T19:14:25Z. `engines.node`: 17.3.0 `>=22.12.0`, 16.4.0 `>=22.0.0`. | https://registry.npmjs.org/@stellar/stellar-sdk | Registry metadata |
 | E8 | In the published 16.4.0 tarball, the generated XDR includes `STELLAR_VALUE_SIGNED_MS` and `scAddressTypeMuxedContract`, but no `muxedContractFromStrkey` / `muxedContractToStrkey` helpers were found. In 17.3.0 all of these are present. | npm tarballs for 16.4.0 and 17.3.0 | Text search of `lib/` and `types/` (an observation, not a full capability audit) |
 | E9 | Latest Go toolchains on the module proxy: go1.27.3 and go1.26.10, so the supported Go releases are 1.27 and 1.26. | https://proxy.golang.org/golang.org/toolchain/@v/list | Module proxy |
+
+## Verified for Phase 8.2, the SDK version check (2026-10-27)
+
+These rows back every version boundary in `internal/deps/capabilities.go`.
+Markers searched for: Go — `StellarValueTypeStellarValueSignedMs` in
+`xdr/xdr_generated.go` (CAP-88 XDR) and `VersionByteMuxedContract` in
+`strkey/main.go` (`W` strkey); JS — `stellarValueSignedMs` (CAP-88 XDR),
+`scAddressTypeMuxedContract` (CAP-84 XDR arm) and `encodeMuxedContract`
+(`W` strkey) anywhere in the published package.
+
+| # | Fact | Source (as fetched) | How it was checked |
+|---|------|---------------------|--------------------|
+| E10 | `go-stellar-sdk` releases: v0.1.0 (2025-12-11) through v0.7.3 (2026-08-20), then v0.8.0 (2026-10-20). v0.1.0, v0.5.0, v0.6.1, v0.7.0 and v0.7.3 contain neither marker; v0.8.0 contains both. Every release before v0.7.3 was published before CAP-88 was created (2026-08-21). | https://proxy.golang.org/github.com/stellar/go-stellar-sdk/@v/list and each `.info`/`.zip` | Downloaded module zips and searched |
+| E11 | `github.com/stellar/go` README: "REPOSITORY DEPRECATED … moved to github.com/stellar/go-stellar-sdk". Its latest version `v0.0.0-20251210100531-aab2ea4aca88` (2025-12-10) contains neither marker. | https://proxy.golang.org/github.com/stellar/go/@latest and its zip | Downloaded and searched |
+| E12 | `@stellar/stellar-sdk`: every release 15.0.0–16.3.1 and 17.0.0–17.2.1 has no marker; 16.4.0 and 16.4.1 have both XDR markers but not `encodeMuxedContract`; 17.3.0 and 17.4.0 have all three. All releases before 15.0.0 were published by 2026-03-04 (14.6.1), before CAP-84 (2026-06-24) and CAP-88 (2026-08-21) were created. Pre-releases: 16.0.0-rc.1/2, 17.0.0-rc.1/2 (not inspected). | https://registry.npmjs.org/@stellar/stellar-sdk and the tarballs of all 18 releases 15.0.0–17.4.0 | Downloaded and searched |
+| E13 | `@stellar/stellar-base` latest is 15.0.0 (2026-03-30) and has no marker. `@stellar/stellar-sdk` 16.0.0 and 17.0.0 do not depend on `@stellar/stellar-base` (they bundle it). | https://registry.npmjs.org/@stellar/stellar-base, SDK `package.json` files | Registry metadata and tarball |
+| E14 | Unscoped npm `stellar-sdk` (latest 13.3.0, 2025-04-21) and `stellar-base` (latest 13.1.0, 2025-03-28) are deprecated: "This package has moved to @stellar/…". | https://registry.npmjs.org/stellar-sdk, https://registry.npmjs.org/stellar-base | Registry metadata |
 
 ## Reported by the planning package, not re-verified here
 
@@ -46,15 +63,19 @@ used as text in report limitations, never in rule logic.
 
 | Open question | Blocks |
 |---------------|--------|
-| Lowest JS SDK version with CAP-88 XDR, and lowest with `W` strkey helpers (16.3.x and earlier 17.x were not inspected) | P30-DEP-001 thresholds |
-| Lowest `go-stellar-sdk` version with P30 XDR (only v0.8.0 inspected) and how the legacy `github.com/stellar/go` module should be classified | P30-DEP-001 |
 | Final SEP-23 text for the muxed-contract strkey | P30-ADDR-001 remediation text |
-| Whether `@stellar/stellar-base` (used directly by some apps) needs its own capability rows | P30-DEP-001 |
+| Protocol 30 support of npm pre-releases (16.0.0-rc.x, 17.0.0-rc.x) | Reported as "could not be verified" until checked |
+| Community SDKs (Python, Rust, Java, Flutter, ...) | Out of scope for P30-DEP-001 |
 
 ## Design assumptions (not facts)
 
 - Rule IDs, severities, confidence policy, CLI flags, exit codes, JSON field
   names and the ignored-directory list are this project's design choices.
+- **Later releases keep a capability.** A version newer than the first one
+  with a feature is assumed to have it (e.g. 17.5.0, v0.9.0, 16.4.2). Removing
+  Protocol 30 support would be a breaking change; re-check when new majors
+  ship. Exception: versions above the last known release of the deprecated
+  or frozen packages (E13, E14) are reported as unverified.
 - `go 1.25.0` in `go.mod` matches the Go SDK floor (E5) so the SDK can be
   imported later without raising it; CI tests on the supported releases (E9).
   The scanner currently imports nothing outside the standard library.
