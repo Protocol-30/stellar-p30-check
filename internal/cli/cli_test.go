@@ -151,7 +151,7 @@ func TestHelpAndVersion(t *testing.T) {
 		}
 	}
 	code, stdout, _ := run(t, nil, "version")
-	if code != ExitOK || stdout != "p30check "+Version+" (report schema 1)\n" {
+	if code != ExitOK || stdout != "p30check "+ToolVersion()+" (report schema 1)\n" {
 		t.Errorf("version: exit=%d stdout=%q", code, stdout)
 	}
 }
@@ -278,5 +278,18 @@ func TestSelfScan(t *testing.T) {
 		if w.Path != "" && !strings.HasPrefix(w.Path, "testdata/") {
 			t.Errorf("warning outside testdata: %+v", w)
 		}
+	}
+}
+
+func TestToolVersionPrefersLinkerValue(t *testing.T) {
+	old := Version
+	t.Cleanup(func() { Version = old })
+	Version = "9.9.9"
+	if got := ToolVersion(); got != "9.9.9" {
+		t.Errorf("ToolVersion() = %q, want the -X value", got)
+	}
+	Version = ""
+	if got := ToolVersion(); got == "" || strings.HasPrefix(got, "v") {
+		t.Errorf("ToolVersion() = %q, want a version without a v prefix", got)
 	}
 }
