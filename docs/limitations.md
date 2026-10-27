@@ -5,19 +5,18 @@
 - Discovers Go and JavaScript/TypeScript manifests, lockfiles and sources
   under one directory and reports them, with every skipped entry and why.
 - Produces a deterministic text or JSON report and a CI-friendly exit code.
-- Flags official Stellar SDK versions without Protocol 30 support
-  (P30-DEP-001) and address checks that reject `W` (P30-ADDR-001); see
+- Runs four rules: SDK versions (P30-DEP-001), address checks that reject
+  `W` (P30-ADDR-001), ledger decoding that fails on CAP-88 ledgers
+  (P30-XDR-001) and close-time assumptions (P30-TS-001); see
   [rules.md](rules.md).
 
 ## What this build does not do
 
-- **The ledger-header (CAP-88) and close-time checks do not exist yet.**
-  Every report says so (`rules-not-implemented` warning).
-- The address check recognises specific literal shapes only (see
+- The source rules recognise specific shapes only (see
   [rules.md](rules.md)). JavaScript and TypeScript are tokenized, not
-  parsed. An empty findings list means no outdated official SDK and none of
-  those shapes were found, not that every address path accepts `W`.
-- Test files are not scanned for address checks.
+  parsed, and nothing is traced across files. An empty findings list means
+  none of those shapes were found, not that the code is compatible.
+- Test files are not scanned by the source rules.
 - `yarn.lock` and `pnpm-lock.yaml` are not read; ranges in `package.json`
   are judged at their lowest allowed version, with low confidence.
 - It never runs, builds or imports the scanned code, and makes no network or

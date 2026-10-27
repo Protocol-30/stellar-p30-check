@@ -25,14 +25,14 @@
     "manifest_files": 1,
     "source_files": 2,
     "skipped_entries": 2,
-    "rules_executed": 2,
+    "rules_executed": 4,
     "findings": 1,
     "findings_by_severity": {
       "high": 0,
       "info": 0,
       "medium": 1
     },
-    "warnings": 1
+    "warnings": 0
   },
   "inventory": [
     {
@@ -61,12 +61,7 @@
       "reason": "ignored directory"
     }
   ],
-  "warnings": [
-    {
-      "code": "rules-not-implemented",
-      "message": "not checked by this build: P30-XDR-001, P30-TS-001; see docs/roadmap.md"
-    }
-  ],
+  "warnings": [],
   "limitations": [
     "Static, offline analysis only: scanned code is never executed, and no network or RPC calls are made.",
     "A finding is an indication to review, not proof of runtime breakage; no findings is not proof of Protocol 30 compatibility.",

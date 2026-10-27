@@ -3,6 +3,13 @@
 ## Unreleased
 
 ### Added
+- P30-XDR-001: ledger decoding in projects whose resolved SDK has no
+  Protocol 30 XDR, `StellarValueType` switches and comparisons without the
+  CAP-88 `_MS` arms, single-arm `GetLcValueSignature` /
+  `MustLcValueSignature`, and vendored `.x` files that predate CAP-88 or
+  CAP-84. `.x` files are now discovered.
+- P30-TS-001: division by, and comparison of, whole-second close times that
+  CAP-88 allows to repeat between ledgers.
 - P30-ADDR-001: finds address checks in Go and JS/TS that accept `C` with
   `G` or `M` but not CAP-84 `W` addresses (regexes, `StrKey`/`strkey`
   predicates, prefix checks and lists), and `SCAddress` / strkey version

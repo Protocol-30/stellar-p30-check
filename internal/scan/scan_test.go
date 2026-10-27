@@ -135,6 +135,21 @@ func TestRunMergesRuleWarnings(t *testing.T) {
 	}
 }
 
+func TestRunMergesDuplicateWarnings(t *testing.T) {
+	root := tree(t, map[string]string{"a.go": "package"})
+	w := report.Warning{Code: "source-unparsed", Path: "a.go", Message: "bad"}
+	rep, err := Run(context.Background(), Config{Target: root, Now: fixed, Rules: []rules.Rule{
+		fakeRule{id: "P30-DEP-001", warnings: []report.Warning{w}},
+		fakeRule{id: "P30-ADDR-001", warnings: []report.Warning{w}},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(codes(rep.Warnings), " "); got != "rules-not-implemented: source-unparsed:a.go" {
+		t.Errorf("warnings = %q", got)
+	}
+}
+
 func TestRunPropagatesRuleErrorsAndCancellation(t *testing.T) {
 	root := tree(t, map[string]string{"go.mod": ""})
 	boom := errors.New("boom")

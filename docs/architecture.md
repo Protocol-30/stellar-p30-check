@@ -14,7 +14,7 @@ CLI flags ──> walker ──> rules ──> report.New ──> text | JSON �
 | `internal/cli` | Argument parsing (flags before or after the path), usage errors, exit-code policy (`Gated`, `ExitCode`). |
 | `internal/scan` | Orchestration: walk, run rules, validate findings, add coverage warnings, build the report. Owns `Limitations`. |
 | `internal/walker` | Root-bound discovery. Stats entries only; never reads contents. |
-| `internal/rules` | `Rule` interface, the shipped rule set (`Default()`) and the rules themselves, including a small JS/TS tokenizer (`jslex.go`); Go source is parsed with `go/parser`. |
+| `internal/rules` | `Rule` interface, the shipped rule set (`Default()`) and the rules themselves, including a small JS/TS tokenizer (`jslex.go`) and the SDK version resolution shared by P30-DEP-001 and P30-XDR-001 (`sdkuse.go`); Go source is parsed with `go/parser`. |
 | `internal/deps` | `go.mod`, `package.json` and npm lockfile parsers, semver, and the sourced SDK capability table. |
 | `internal/report` | Versioned report model, sorting, summary, text and JSON renderers. |
 
@@ -27,8 +27,8 @@ CLI flags ──> walker ──> rules ──> report.New ──> text | JSON �
   vendor dist build out coverage .next .nuxt .turbo .cache`.
 - Relevant files: `go.mod`, `go.sum`, `go.work`, `package.json`,
   `package-lock.json`, `npm-shrinkwrap.json`, `yarn.lock`, `pnpm-lock.yaml`,
-  and `.go .js .jsx .ts .tsx` sources. `*.min.js` and `*.d.ts` are treated as
-  generated and not listed.
+  `.go .js .jsx .ts .tsx` sources, and `.x` XDR definition files.
+  `*.min.js` and `*.d.ts` are treated as generated and not listed.
 - Symlinks are not followed by default and appear in `skipped`. With
   `--follow-symlinks`, a link to a regular file is included only if its
   resolved target is inside the root; symlinked directories are never
@@ -64,7 +64,7 @@ reported:
 
 | Warning code | When |
 |--------------|------|
-| `rules-not-implemented` | A planned rule (`rules.Planned`) is not in this build |
+| `rules-not-implemented` | A planned rule (`rules.Planned`) is not in this build (none at present) |
 | `no-rules` | The rule set is empty (only with injected rule sets in tests) |
 | `check-not-implemented` | Per manifest, when `P30-DEP-001` is absent |
 | `no-relevant-files` | Nothing relevant was found under the target |

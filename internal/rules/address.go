@@ -8,7 +8,6 @@ import (
 
 	"github.com/Protocol-30/stellar-p30-check/internal/deps"
 	"github.com/Protocol-30/stellar-p30-check/internal/report"
-	"github.com/Protocol-30/stellar-p30-check/internal/walker"
 )
 
 // AddressesID is the rule ID of the W address check.
@@ -35,7 +34,7 @@ func (Addresses) Check(ctx context.Context, in Input) (Output, error) {
 		if err := ctx.Err(); err != nil {
 			return Output{}, err
 		}
-		if f.Category != walker.CategorySource || isTestFile(f.Path) {
+		if !isCodeKind(f.Kind) || isTestFile(f.Path) {
 			continue
 		}
 		data, err := in.ReadFile(f.Path)
@@ -63,11 +62,23 @@ func (Addresses) Check(ctx context.Context, in Input) (Output, error) {
 	return out, nil
 }
 
+// sourceWarning reports a source file the source rules could not read or
+// parse. The message does not name the rule, so the scanner can merge the
+// identical warnings every source rule produces for the same file.
 func sourceWarning(p string, err error) report.Warning {
 	return report.Warning{
 		Code: "source-unparsed", Path: p,
-		Message: fmt.Sprintf("%s was not checked by %s: %v", path.Base(p), AddressesID, err),
+		Message: fmt.Sprintf("%s was not checked by the source rules: %v", path.Base(p), err),
 	}
+}
+
+// isCodeKind reports whether an inventory kind is Go or JS/TS source.
+func isCodeKind(kind string) bool {
+	switch kind {
+	case "source-go", "source-js", "source-jsx", "source-ts", "source-tsx":
+		return true
+	}
+	return false
 }
 
 // isTestFile reports whether a source path is test code, which is skipped:

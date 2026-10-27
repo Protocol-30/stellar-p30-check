@@ -97,6 +97,7 @@ var sourceKinds = map[string]string{
 	".jsx": "source-jsx",
 	".ts":  "source-ts",
 	".tsx": "source-tsx",
+	".x":   "xdr-definition", // XDR schema files such as a vendored Stellar-ledger.x
 }
 
 // Classify returns the kind and category of a file name, or ok=false when

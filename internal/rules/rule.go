@@ -39,5 +39,5 @@ var Planned = []string{"P30-DEP-001", "P30-ADDR-001", "P30-XDR-001", "P30-TS-001
 
 // Default returns the rules shipped in this build.
 func Default() []Rule {
-	return []Rule{Dependencies{}, Addresses{}}
+	return []Rule{Dependencies{}, Addresses{}, LedgerXDR{}, CloseTimes{}}
 }

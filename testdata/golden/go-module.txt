@@ -2,12 +2,9 @@ p30check 0.1.0-dev - Stellar Protocol 30 compatibility scan (report schema 1)
 Target:     testdata/fixtures/go-module
 Checked at: 2026-10-25T12:00:00Z
 Inventory:  1 manifest file(s), 2 source file(s), 0 skipped entries
-Rules run:  2
+Rules run:  4
 
 Findings (0): none reported
-
-Warnings (1):
-  [rules-not-implemented] not checked by this build: P30-XDR-001, P30-TS-001; see docs/roadmap.md
 
 Discovered files:
   manifest go-mod           go.mod

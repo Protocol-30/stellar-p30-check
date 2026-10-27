@@ -68,6 +68,7 @@ func TestClassify(t *testing.T) {
 		{"index.js", "source-js", CategorySource, true},
 		{"view.jsx", "source-jsx", CategorySource, true},
 		{"lib.ts", "source-ts", CategorySource, true},
+		{"Stellar-ledger.x", "xdr-definition", CategorySource, true},
 		{"bundle.min.js", "", "", false},
 		{"types.d.ts", "", "", false},
 		{"README.md", "", "", false},
