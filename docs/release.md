@@ -7,8 +7,8 @@ drafts; publishing is a manual click after review.
 
 These are owner decisions:
 
-- [ ] **Name.** `stellar-p30-check` / `p30check` is a working name. Renaming after a release breaks install commands and the Go module path.
-- [ ] **License.** Add a `LICENSE` file. Archives include it automatically when it exists.
+- [x] **Name.** `stellar-p30-check` (repository and Go module) and `p30check` (binary), confirmed by the owner on 2026-10-27.
+- [x] **License.** Apache License 2.0 (`LICENSE`), added 2026-10-27; the release archives include it.
 - [ ] **Default branch.** Set the repository's default branch to `main`. It is currently the first branch pushed (`claude/new-session-4ugmgx`), so `go install ...@latest` and the repository front page show that branch instead of `main`.
 
 ## Steps

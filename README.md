@@ -17,8 +17,6 @@ muxed-contract addresses, and ledger-header decoding that predates CAP-88.
 > [docs/release.md](docs/release.md). See [docs/roadmap.md](docs/roadmap.md) and
 > [docs/limitations.md](docs/limitations.md).
 
-`stellar-p30-check` is a working name.
-
 ## Quick start
 
 Requires Go 1.25 or newer (CI tests on Go 1.26 and 1.27).
@@ -123,4 +121,5 @@ Flags may come before or after the path.
 
 ## License
 
-Not yet chosen; the repository owner will add a `LICENSE` file.
+Apache License 2.0; see [LICENSE](LICENSE). This is the license the
+official Stellar Go and JS SDKs and stellar-xdr use.

@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Apache License 2.0 (`LICENSE`).
 - Release tooling: `scripts/release-build.sh` builds reproducible archives
   for linux/darwin/windows on amd64/arm64 plus `SHA256SUMS`;
   `.github/workflows/release.yml` drafts a GitHub release on a `v*` tag; CI
