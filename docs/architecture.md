@@ -42,6 +42,18 @@ CLI flags ──> walker ──> rules ──> report.New ──> text | JSON �
 - An unreadable subdirectory or file is listed in `skipped` and the scan
   continues; an unreadable root is an error.
 
+## Source pass
+
+`rules.CheckAll` runs P30-DEP-001 through its `Check` method and the
+source rules (P30-ADDR-001, P30-XDR-001, P30-TS-001) in one pass over the
+files:
+- each source file is read once and parsed once (`go/parser` for Go; tokens plus a bracket index for JS/TS);
+- the parsed file is handed to every source rule, then dropped.
+
+Matchers must stay linear in file size on any input:
+- JS/TS lookups (matching bracket, enclosing group, token counts in a range) are O(1) through `jsindex.go`;
+- Go per-function checks are memoised (`gomentions.go`).
+
 ## Rules contract
 
 ```go

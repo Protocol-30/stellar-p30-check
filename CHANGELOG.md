@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Added
+- Integration fixtures (`testdata/integration`), a malformed-input scan
+  test, a whole-pipeline fuzzer (`FuzzCheckAll`), a self-scan test and
+  docs/verification.md.
 - P30-XDR-001: ledger decoding in projects whose resolved SDK has no
   Protocol 30 XDR, `StellarValueType` switches and comparisons without the
   CAP-88 `_MS` arms, single-arm `GetLcValueSignature` /
@@ -34,6 +37,16 @@
   stable sorting and an injectable clock.
 - Evidence log for CAP-84/87/88 and the official Go and JS SDKs.
 
+### Fixed
+- Six crafted inputs of 1 MB or less (deeply nested JS division, switches,
+  comparisons and classes; Go functions with tens of thousands of
+  comparisons or prefix checks) took over a minute to scan. The JS/TS
+  matchers now use a precomputed bracket index and the Go scope checks are
+  memoised; all six finish in under a second. Regression tests pin them.
+
 ### Changed
+- Source rules run in one shared pass: each file is read and parsed once
+  for all of them (about 2x faster on a 650-file Go tree), with identical
+  results.
 - Default `--max-file-bytes` raised from 2 MiB to 16 MiB so typical npm
   lockfiles are read.

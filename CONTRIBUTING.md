@@ -17,7 +17,13 @@ the JS/TS tokenizer or the address matchers, run the fuzzers for a while:
 go test ./internal/rules -run=NONE -fuzz=FuzzJSAddressObservations -fuzztime=60s
 go test ./internal/rules -run=NONE -fuzz=FuzzGoAddressObservations -fuzztime=60s
 go test ./internal/rules -run=NONE -fuzz=FuzzLedgerObservations -fuzztime=60s
+go test ./internal/rules -run=NONE -fuzz=FuzzCheckAll -fuzztime=60s
 ```
+
+Matchers must stay linear in the file size, whatever the nesting: use the
+bracket index in `jsindex.go` instead of rescanning token ranges, and
+`goMentions` instead of re-walking a function per finding. Add any new
+input shape that could blow up to `TestAdversarialInputsStayLinear`.
 
 Crashers land in `internal/rules/testdata/fuzz/`; commit them with the fix.
 

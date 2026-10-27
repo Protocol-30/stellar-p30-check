@@ -5,14 +5,15 @@ An offline, read-only command-line scanner that flags Stellar
 repositories: outdated SDKs, address validation that rejects CAP-84 `W`
 muxed-contract addresses, and ledger-header decoding that predates CAP-88.
 
-> **Status: v0.1.0-dev, DripWave Phase 8 (build), step 8.4 done.** All four
+> **Status: v0.1.0-dev, DripWave Phase 8 (build and test) done.** All four
 > planned rules ship:
 > [P30-DEP-001](docs/rules.md#p30-dep-001-stellar-sdk-version) (SDK versions),
 > [P30-ADDR-001](docs/rules.md#p30-addr-001-w-address-handling) (address
 > checks that reject `W`), [P30-XDR-001](docs/rules.md#p30-xdr-001-ledger-xdr)
 > (ledger decoding that fails on CAP-88 ledgers) and
 > [P30-TS-001](docs/rules.md#p30-ts-001-close-times) (close-time
-> assumptions). Next is step 8.5, verification. See [docs/roadmap.md](docs/roadmap.md) and
+> assumptions). Verification results: [docs/verification.md](docs/verification.md).
+> Next is Phase 9, release binaries. See [docs/roadmap.md](docs/roadmap.md) and
 > [docs/limitations.md](docs/limitations.md).
 
 `stellar-p30-check` is a working name.
@@ -98,7 +99,9 @@ Flags may come before or after the path.
   never runs a package manager; no network.
 - Stays inside `<path>`: symlinks are not followed by default, and never
   outside the root.
-- Bounded by file-size, file-count, entry-count and depth ceilings.
+- Bounded by file-size, file-count, entry-count and depth ceilings, and
+  every matcher runs in linear time, so crafted files cannot stall a CI job
+  (see [docs/verification.md](docs/verification.md)).
 - A malformed manifest produces a warning, not a crash.
 - Reports use root-relative paths; text output escapes control characters.
 
@@ -109,6 +112,7 @@ Flags may come before or after the path.
 - [docs/architecture.md](docs/architecture.md) — pipeline, report schema, exit codes
 - [docs/limitations.md](docs/limitations.md) — what a scan can and cannot tell you
 - [docs/evidence.md](docs/evidence.md) — verified Protocol 30 / SDK facts with sources and dates
+- [docs/verification.md](docs/verification.md) — what was tested, on what, and the results
 - [docs/plan/](docs/plan/) — original build plan and backlog
 - [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [CHANGELOG.md](CHANGELOG.md)
 
