@@ -60,6 +60,7 @@ func Run(ctx context.Context, cfg Config) (report.ScanReport, error) {
 
 	var findings []report.Finding
 	ws := coverageWarnings(cfg.Rules, res.Files)
+	seenWarning := map[report.Warning]bool{} // rules may report the same file problem
 	for _, r := range cfg.Rules {
 		if err := ctx.Err(); err != nil {
 			return report.ScanReport{}, fmt.Errorf("scan cancelled: %w", err)
@@ -74,7 +75,12 @@ func Run(ctx context.Context, cfg Config) (report.ScanReport, error) {
 			}
 		}
 		findings = append(findings, got.Findings...)
-		ws = append(ws, got.Warnings...)
+		for _, w := range got.Warnings {
+			if !seenWarning[w] {
+				seenWarning[w] = true
+				ws = append(ws, w)
+			}
+		}
 	}
 
 	inventory := make([]report.InventoryItem, 0, len(res.Files))
