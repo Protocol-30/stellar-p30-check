@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## v0.1.0 - 2026-10-27
+
+First release. `p30check` is an offline, read-only scanner that flags Stellar
+Protocol 30 compatibility risks in Go and JavaScript/TypeScript
+repositories, with four rules: outdated SDK versions (P30-DEP-001), address
+checks that reject CAP-84 `W` addresses (P30-ADDR-001), ledger decoding that
+fails on CAP-88 ledgers (P30-XDR-001) and close-time assumptions
+(P30-TS-001). Findings are static indications, not proof of breakage or of
+compatibility; see
+[limitations](https://github.com/Protocol-30/stellar-p30-check/blob/v0.1.0/docs/limitations.md)
+and [rules](https://github.com/Protocol-30/stellar-p30-check/blob/v0.1.0/docs/rules.md).
+Verify downloads against `SHA256SUMS`; see the
+[CI guide](https://github.com/Protocol-30/stellar-p30-check/blob/v0.1.0/docs/ci-integration.md).
+
 ### Added
 - Apache License 2.0 (`LICENSE`).
 - Release tooling: `scripts/release-build.sh` builds reproducible archives
