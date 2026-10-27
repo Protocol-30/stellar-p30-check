@@ -14,12 +14,13 @@ var jsStrKeyPredicates = map[string]byte{
 // tokens only. Expression grouping is approximate: tests on the same value
 // within one statement (between ;, { and }) are treated as one check.
 func jsAddressObservations(src []byte) []observation {
-	toks := jsTokenize(src)
-	var obs []observation
+	return jsAddressObs(newJSFile(src))
+}
 
-	at := func(i int, kind jsKind, text string) bool {
-		return i >= 0 && i < len(toks) && toks[i].Kind == kind && (text == "" || toks[i].Text == text)
-	}
+func jsAddressObs(f *jsFile) []observation {
+	toks := f.toks
+	at := f.at
+	var obs []observation
 
 	// Regex literals and RegExp("...") constructions.
 	for i, t := range toks {
@@ -73,34 +74,21 @@ func jsAddressObservations(src []byte) []observation {
 	}
 
 	// switch (...) { case ...scAddressTypeContract...: }
+	named := func(name string) func(int) bool {
+		return func(j int) bool {
+			return toks[j].Text == name && (toks[j].Kind == jsIdent || toks[j].Kind == jsString)
+		}
+	}
 	for i := range toks {
-		if !at(i, jsIdent, "switch") || !at(i+1, jsPunct, "(") {
+		sw, ok := f.switchAt(i)
+		if !ok {
 			continue
 		}
-		open := jsMatch(toks, i+1, "(", ")")
-		if open < 0 || !at(open+1, jsPunct, "{") {
-			continue
-		}
-		end := jsMatch(toks, open+1, "{", "}")
-		if end < 0 {
-			continue
-		}
-		o := observation{pos: i, line: toks[i].Line, construct: cTypeSwitch}
-		depth := 0
-		for j := open + 2; j < end; j++ {
-			t := toks[j]
-			switch {
-			case t.Kind == jsPunct && (t.Text == "{" || t.Text == "(" || t.Text == "["):
-				depth++
-			case t.Kind == jsPunct && (t.Text == "}" || t.Text == ")" || t.Text == "]"):
-				depth--
-			case depth == 0 && at(j, jsIdent, "default") && at(j+1, jsPunct, ":"):
-				o.hasDefault = true
-			case t.Text == "scAddressTypeContract" && (t.Kind == jsIdent || t.Kind == jsString):
-				o.contractCase = true
-			case t.Text == "scAddressTypeMuxedContract" && (t.Kind == jsIdent || t.Kind == jsString):
-				o.muxedContractCase = true
-			}
+		lo, hi := sw.bodyOpen+1, sw.bodyClose
+		o := observation{
+			pos: i, line: toks[i].Line, construct: cTypeSwitch, hasDefault: sw.hasDefault,
+			contractCase:      f.count("scAddressTypeContract", named("scAddressTypeContract"), lo, hi) > 0,
+			muxedContractCase: f.count("scAddressTypeMuxedContract", named("scAddressTypeMuxedContract"), lo, hi) > 0,
 		}
 		if o.contractCase {
 			obs = append(obs, o)
@@ -160,22 +148,27 @@ func jsMarkWNearby(toks []jsToken, obs []observation) {
 		return false
 	}
 
-	scope := make([]int, n) // open brace of the scope, or -1 for the file
+	// scope[i] is the outermost non-class brace around token i, or -1 for
+	// the file. firstOpen tracks the stack index of that brace, so each
+	// token costs O(1) however deeply classes nest.
+	scope := make([]int, n)
 	stack = stack[:0]
-	class := map[int]bool{}
+	firstOpen := -1
 	for i := range toks {
 		if isBrace(i, "}") && len(stack) > 0 {
 			stack = stack[:len(stack)-1]
-		}
-		scope[i] = -1
-		for _, o := range stack {
-			if !class[o] {
-				scope[i] = o
-				break
+			if firstOpen >= len(stack) {
+				firstOpen = -1
 			}
 		}
+		scope[i] = -1
+		if firstOpen >= 0 {
+			scope[i] = stack[firstOpen]
+		}
 		if isBrace(i, "{") {
-			class[i] = isClassBody(i)
+			if firstOpen < 0 && !isClassBody(i) {
+				firstOpen = len(stack)
+			}
 			stack = append(stack, i)
 		}
 	}
@@ -310,24 +303,4 @@ func jsReceiver(toks []jsToken, i int) string {
 		r += p
 	}
 	return r
-}
-
-// jsMatch returns the index of the token closing the bracket at toks[i].
-func jsMatch(toks []jsToken, i int, open, close string) int {
-	depth := 0
-	for j := i; j < len(toks); j++ {
-		if toks[j].Kind != jsPunct {
-			continue
-		}
-		switch toks[j].Text {
-		case open:
-			depth++
-		case close:
-			depth--
-			if depth == 0 {
-				return j
-			}
-		}
-	}
-	return -1
 }

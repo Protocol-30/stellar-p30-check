@@ -5,7 +5,6 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"strings"
 
 	"github.com/Protocol-30/stellar-p30-check/internal/deps"
 	"github.com/Protocol-30/stellar-p30-check/internal/report"
@@ -39,36 +38,31 @@ var (
 )
 
 // Check implements Rule.
-func (CloseTimes) Check(ctx context.Context, in Input) (Output, error) {
-	var out Output
-	for _, f := range in.Files {
-		if err := ctx.Err(); err != nil {
-			return Output{}, err
+func (r CloseTimes) Check(ctx context.Context, in Input) (Output, error) {
+	return checkSource(ctx, in, r)
+}
+
+func (CloseTimes) prepare(context.Context, Input) (func(*sourceFile) Output, error) {
+	return func(sf *sourceFile) Output {
+		var out Output
+		if !isCodeKind(sf.Kind) || isTestFile(sf.Path) {
+			return out
 		}
-		if !isCodeKind(f.Kind) || isTestFile(f.Path) {
-			continue
-		}
-		data, err := in.ReadFile(f.Path)
-		if err != nil {
-			out.Warnings = append(out.Warnings, sourceWarning(f.Path, err))
-			continue
+		if err := sf.codeProblem(); err != nil {
+			out.Warnings = append(out.Warnings, sourceWarning(sf.Path, err))
+			return out
 		}
 		var obs []closeTimeObs
-		if f.Kind == "source-go" {
-			obs, err = goCloseTimeObservations(f.Path, data)
-			if err != nil {
-				out.Warnings = append(out.Warnings, sourceWarning(f.Path, err))
-				continue
-			}
+		if sf.goAST != nil {
+			obs = goCloseTimeObs(sf.fset, sf.goAST)
 		} else {
-			obs = jsCloseTimeObservations(data)
+			obs = jsCloseTimeObs(sf.js)
 		}
-		lines := strings.Split(string(data), "\n")
 		for _, o := range obs {
-			out.Findings = append(out.Findings, o.finding(f.Path, lines))
+			out.Findings = append(out.Findings, o.finding(sf.Path, sf.lines))
 		}
-	}
-	return out, nil
+		return out
+	}, nil
 }
 
 type closeTimeObs struct {
@@ -99,6 +93,10 @@ func goCloseTimeObservations(filename string, src []byte) ([]closeTimeObs, error
 	if err != nil {
 		return nil, err
 	}
+	return goCloseTimeObs(fset, file), nil
+}
+
+func goCloseTimeObs(fset *token.FileSet, file *ast.File) []closeTimeObs {
 	var obs []closeTimeObs
 	line := func(n ast.Node) int { return fset.Position(n.Pos()).Line }
 	ast.Inspect(file, func(n ast.Node) bool {
@@ -124,7 +122,7 @@ func goCloseTimeObservations(filename string, src []byte) ([]closeTimeObs, error
 		}
 		return true
 	})
-	return obs, nil
+	return obs
 }
 
 // goCloseTime matches x.CloseTime, int64(x.CloseTime), x.ClosedAt.Unix() and
@@ -175,19 +173,16 @@ func goCloseTimeDiff(e ast.Expr) bool {
 // jsCloseTimeObservations works on tokens. A close time is a member access
 // (.closeTime, .ledgerCloseTime, .closed_at, .closedAt), optionally called.
 func jsCloseTimeObservations(src []byte) []closeTimeObs {
-	toks := jsTokenize(src)
+	return jsCloseTimeObs(newJSFile(src))
+}
+
+func jsCloseTimeObs(f *jsFile) []closeTimeObs {
+	toks := f.toks
 	isField := func(i int) bool {
 		return i > 0 && toks[i].Kind == jsIdent && jsCloseTimeFields[toks[i].Text] &&
 			toks[i-1].Kind == jsPunct && (toks[i-1].Text == "." || toks[i-1].Text == "?.")
 	}
-	hasField := func(lo, hi int) bool {
-		for i := lo; i < hi; i++ {
-			if isField(i) {
-				return true
-			}
-		}
-		return false
-	}
+	hasField := func(lo, hi int) bool { return f.count("close-time-field", isField, lo, hi) > 0 }
 	var obs []closeTimeObs
 	for i, t := range toks {
 		if t.Kind != jsPunct {
@@ -196,19 +191,16 @@ func jsCloseTimeObservations(src []byte) []closeTimeObs {
 		switch t.Text {
 		case "/", "%":
 			// x / (a.closeTime() - b.closeTime())
-			if i+1 >= len(toks) || toks[i+1].Kind != jsPunct || toks[i+1].Text != "(" {
+			if !f.at(i+1, jsPunct, "(") {
 				continue
 			}
-			end := jsMatch(toks, i+1, "(", ")")
-			if end < 0 {
-				continue
-			}
-			if minus := jsTopLevel(toks, i+2, end, "-"); minus > 0 && hasField(i+2, minus) && hasField(minus+1, end) {
+			end, minus := f.match[i+1], f.firstMinus[i+1]
+			if end > 0 && minus > 0 && hasField(i+2, minus) && hasField(minus+1, end) {
 				obs = append(obs, closeTimeObs{line: t.Line, division: true})
 			}
 		case "<", ">", "<=", ">=", "===", "!==", "==", "!=":
-			lo := jsOperandStart(toks, i)
-			hi := jsOperandEnd(toks, i)
+			lo := jsOperandStart(f, i)
+			hi := jsOperandEnd(f, i)
 			if hasField(lo, i) && hasField(i+1, hi) {
 				obs = append(obs, closeTimeObs{line: t.Line})
 			}
@@ -223,12 +215,13 @@ var jsOperandStops = map[string]bool{
 }
 
 // jsOperandStart walks left from the operator at i to the start of its
-// left operand, skipping balanced brackets.
-func jsOperandStart(toks []jsToken, i int) int {
-	depth := 0
+// left operand. Balanced groups are skipped in one step via the bracket
+// index, so the walk is linear in the operand's top-level tokens.
+func jsOperandStart(f *jsFile, i int) int {
+	toks := f.toks
 	for j := i - 1; j >= 0; j-- {
 		t := toks[j]
-		if t.Kind == jsIdent && (t.Text == "return" || t.Text == "if" || t.Text == "while") && depth == 0 {
+		if t.Kind == jsIdent && (t.Text == "return" || t.Text == "if" || t.Text == "while") {
 			return j + 1
 		}
 		if t.Kind != jsPunct {
@@ -236,13 +229,11 @@ func jsOperandStart(toks []jsToken, i int) int {
 		}
 		switch {
 		case t.Text == ")" || t.Text == "]":
-			depth++
-		case t.Text == "(" || t.Text == "[":
-			if depth == 0 {
+			if f.match[j] < 0 {
 				return j + 1
 			}
-			depth--
-		case depth == 0 && jsOperandStops[t.Text]:
+			j = f.match[j] // continue left of the opening bracket
+		case t.Text == "(" || t.Text == "[" || jsOperandStops[t.Text]:
 			return j + 1
 		}
 	}
@@ -251,8 +242,8 @@ func jsOperandStart(toks []jsToken, i int) int {
 
 // jsOperandEnd walks right from the operator at i to the end of its right
 // operand (exclusive).
-func jsOperandEnd(toks []jsToken, i int) int {
-	depth := 0
+func jsOperandEnd(f *jsFile, i int) int {
+	toks := f.toks
 	for j := i + 1; j < len(toks); j++ {
 		t := toks[j]
 		if t.Kind != jsPunct {
@@ -260,38 +251,13 @@ func jsOperandEnd(toks []jsToken, i int) int {
 		}
 		switch {
 		case t.Text == "(" || t.Text == "[":
-			depth++
-		case t.Text == ")" || t.Text == "]":
-			if depth == 0 {
+			if f.match[j] < 0 {
 				return j
 			}
-			depth--
-		case depth == 0 && jsOperandStops[t.Text]:
+			j = f.match[j]
+		case t.Text == ")" || t.Text == "]" || jsOperandStops[t.Text]:
 			return j
 		}
 	}
 	return len(toks)
-}
-
-// jsTopLevel returns the index of the first op token between lo and hi at
-// bracket depth 0, or -1.
-func jsTopLevel(toks []jsToken, lo, hi int, op string) int {
-	depth := 0
-	for j := lo; j < hi; j++ {
-		t := toks[j]
-		if t.Kind != jsPunct {
-			continue
-		}
-		switch t.Text {
-		case "(", "[", "{":
-			depth++
-		case ")", "]", "}":
-			depth--
-		case op:
-			if depth == 0 {
-				return j
-			}
-		}
-	}
-	return -1
 }

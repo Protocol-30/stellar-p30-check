@@ -61,14 +61,13 @@ func Run(ctx context.Context, cfg Config) (report.ScanReport, error) {
 	var findings []report.Finding
 	ws := coverageWarnings(cfg.Rules, res.Files)
 	seenWarning := map[report.Warning]bool{} // rules may report the same file problem
-	for _, r := range cfg.Rules {
-		if err := ctx.Err(); err != nil {
-			return report.ScanReport{}, fmt.Errorf("scan cancelled: %w", err)
-		}
-		got, err := r.Check(ctx, in)
-		if err != nil {
-			return report.ScanReport{}, fmt.Errorf("rule %s: %w", r.ID(), err)
-		}
+	// CheckAll reads and parses each source file once for all source rules.
+	outs, err := rules.CheckAll(ctx, in, cfg.Rules)
+	if err != nil {
+		return report.ScanReport{}, err
+	}
+	for i, r := range cfg.Rules {
+		got := outs[i]
 		for _, f := range got.Findings {
 			if err := f.Validate(); err != nil {
 				return report.ScanReport{}, fmt.Errorf("rule %s produced an invalid finding: %w", r.ID(), err)
