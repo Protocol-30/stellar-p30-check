@@ -16,7 +16,7 @@ import (
 
 // Defaults for the traversal ceilings.
 const (
-	DefaultMaxFileBytes = 2 << 20 // 2 MiB
+	DefaultMaxFileBytes = 16 << 20 // 16 MiB; npm lockfiles in large repos exceed a few MiB
 	DefaultMaxFiles     = 20000
 	DefaultMaxEntries   = 500000
 	DefaultMaxDepth     = 64

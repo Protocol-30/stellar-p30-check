@@ -24,8 +24,8 @@ var fixedNow = func() time.Time { return time.Date(2026, 10, 25, 12, 0, 0, 0, ti
 type injected []report.Finding
 
 func (injected) ID() string { return "P30-TEST-001" }
-func (f injected) Check(context.Context, rules.Input) ([]report.Finding, error) {
-	return f, nil
+func (f injected) Check(context.Context, rules.Input) (rules.Output, error) {
+	return rules.Output{Findings: f}, nil
 }
 
 func run(t *testing.T, rs []rules.Rule, args ...string) (code int, stdout, stderr string) {

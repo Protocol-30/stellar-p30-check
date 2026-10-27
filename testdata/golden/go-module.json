@@ -8,14 +8,14 @@
     "manifest_files": 1,
     "source_files": 2,
     "skipped_entries": 0,
-    "rules_executed": 0,
+    "rules_executed": 1,
     "findings": 0,
     "findings_by_severity": {
       "high": 0,
       "info": 0,
       "medium": 0
     },
-    "warnings": 2
+    "warnings": 1
   },
   "inventory": [
     {
@@ -37,13 +37,8 @@
   "skipped": [],
   "warnings": [
     {
-      "code": "check-not-implemented",
-      "path": "go.mod",
-      "message": "dependency capability check P30-DEP-001 is not implemented yet; SDK versions in this file were not evaluated"
-    },
-    {
-      "code": "no-rules",
-      "message": "this build ships no Protocol 30 compatibility rules; the report is an inventory only and makes no compatibility claim"
+      "code": "rules-not-implemented",
+      "message": "not checked by this build: P30-ADDR-001, P30-XDR-001, P30-TS-001; see docs/roadmap.md"
     }
   ],
   "limitations": [

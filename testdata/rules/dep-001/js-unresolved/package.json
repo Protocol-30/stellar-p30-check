@@ -1,0 +1,8 @@
+{
+  "name": "experiment",
+  "private": true,
+  "dependencies": {
+    "@stellar/stellar-sdk": "github:example/js-stellar-sdk-fork",
+    "stellar": "npm:@stellar/stellar-sdk@latest"
+  }
+}

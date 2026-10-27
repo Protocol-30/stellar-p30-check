@@ -19,16 +19,17 @@ var fixed = func() time.Time { return time.Date(2026, 10, 25, 0, 0, 0, 0, time.U
 type fakeRule struct {
 	id       string
 	findings []report.Finding
+	warnings []report.Warning
 	err      error
 	saw      *rules.Input
 }
 
 func (r fakeRule) ID() string { return r.id }
-func (r fakeRule) Check(_ context.Context, in rules.Input) ([]report.Finding, error) {
+func (r fakeRule) Check(_ context.Context, in rules.Input) (rules.Output, error) {
 	if r.saw != nil {
 		*r.saw = in
 	}
-	return r.findings, r.err
+	return rules.Output{Findings: r.findings, Warnings: r.warnings}, r.err
 }
 
 func tree(t *testing.T, files map[string]string) string {
@@ -102,10 +103,12 @@ func TestRunCollectsAndValidatesRuleFindings(t *testing.T) {
 	if len(rep.Findings) != 1 || rep.Summary.RulesExecuted != 1 {
 		t.Fatalf("report = %+v", rep)
 	}
-	for _, w := range rep.Warnings {
-		if w.Code == "no-rules" || w.Code == "check-not-implemented" {
-			t.Errorf("unexpected warning with the dependency rule present: %+v", w)
-		}
+	got := strings.Join(codes(rep.Warnings), " ")
+	if want := "rules-not-implemented:"; got != want {
+		t.Errorf("warnings = %q, want %q", got, want)
+	}
+	if !strings.Contains(rep.Warnings[0].Message, "P30-ADDR-001, P30-XDR-001, P30-TS-001") {
+		t.Errorf("missing rules not listed: %q", rep.Warnings[0].Message)
 	}
 
 	bad := good
@@ -116,6 +119,19 @@ func TestRunCollectsAndValidatesRuleFindings(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "invalid finding") {
 		t.Errorf("invalid finding accepted, err = %v", err)
+	}
+}
+
+func TestRunMergesRuleWarnings(t *testing.T) {
+	root := tree(t, map[string]string{"go.mod": ""})
+	w := report.Warning{Code: "manifest-unparsed", Path: "go.mod", Message: "bad"}
+	rep, err := Run(context.Background(), Config{Target: root, Now: fixed,
+		Rules: []rules.Rule{fakeRule{id: "P30-DEP-001", warnings: []report.Warning{w}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(codes(rep.Warnings), " "); got != "manifest-unparsed:go.mod rules-not-implemented:" {
+		t.Errorf("warnings = %q", got)
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Protocol-30/stellar-p30-check/internal/report"
@@ -58,6 +59,7 @@ func Run(ctx context.Context, cfg Config) (report.ScanReport, error) {
 	}
 
 	var findings []report.Finding
+	ws := coverageWarnings(cfg.Rules, res.Files)
 	for _, r := range cfg.Rules {
 		if err := ctx.Err(); err != nil {
 			return report.ScanReport{}, fmt.Errorf("scan cancelled: %w", err)
@@ -66,12 +68,13 @@ func Run(ctx context.Context, cfg Config) (report.ScanReport, error) {
 		if err != nil {
 			return report.ScanReport{}, fmt.Errorf("rule %s: %w", r.ID(), err)
 		}
-		for _, f := range got {
+		for _, f := range got.Findings {
 			if err := f.Validate(); err != nil {
 				return report.ScanReport{}, fmt.Errorf("rule %s produced an invalid finding: %w", r.ID(), err)
 			}
 		}
-		findings = append(findings, got...)
+		findings = append(findings, got.Findings...)
+		ws = append(ws, got.Warnings...)
 	}
 
 	inventory := make([]report.InventoryItem, 0, len(res.Files))
@@ -84,18 +87,31 @@ func Run(ctx context.Context, cfg Config) (report.ScanReport, error) {
 	}
 
 	return report.New(cfg.ToolVersion, cfg.Target, now(), len(cfg.Rules),
-		findings, inventory, skipped, warnings(cfg.Rules, res.Files), Limitations), nil
+		findings, inventory, skipped, ws, Limitations), nil
 }
 
-// warnings explains gaps in coverage so an empty findings list is never
-// read as an all-clear.
-func warnings(rs []rules.Rule, files []walker.File) []report.Warning {
+// coverageWarnings explains gaps in coverage so an empty findings list is
+// never read as an all-clear.
+func coverageWarnings(rs []rules.Rule, files []walker.File) []report.Warning {
 	var ws []report.Warning
 	if len(rs) == 0 {
 		ws = append(ws, report.Warning{
 			Code:    "no-rules",
 			Message: "this build ships no Protocol 30 compatibility rules; the report is an inventory only and makes no compatibility claim",
 		})
+	} else {
+		var missing []string
+		for _, id := range rules.Planned {
+			if !hasRule(rs, id) {
+				missing = append(missing, id)
+			}
+		}
+		if len(missing) > 0 {
+			ws = append(ws, report.Warning{
+				Code:    "rules-not-implemented",
+				Message: "not checked by this build: " + strings.Join(missing, ", ") + "; see docs/roadmap.md",
+			})
+		}
 	}
 	if len(files) == 0 {
 		ws = append(ws, report.Warning{
