@@ -1,0 +1,43 @@
+name: release
+
+# Runs only when a maintainer pushes a version tag such as v0.1.0. It
+# creates a *draft* GitHub release; a maintainer reviews the assets and
+# publishes it by hand. See docs/release.md.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: build and draft release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the draft release and upload assets
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: check changelog entry
+        run: scripts/release-notes.sh "$GITHUB_REF_NAME" > release-notes.md
+      - name: test
+        run: go test ./...
+      - name: build
+        run: scripts/release-build.sh "$GITHUB_REF_NAME"
+      - name: verify
+        run: |
+          (cd dist && sha256sum -c SHA256SUMS)
+          tar -xzf "dist/p30check_${GITHUB_REF_NAME#v}_linux_amd64.tar.gz" -C "$RUNNER_TEMP"
+          "$RUNNER_TEMP/p30check_${GITHUB_REF_NAME#v}_linux_amd64/p30check" version
+          printf '\nBuilt with %s.\n' "$(go version)" >> release-notes.md
+      - name: draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/*.tar.gz dist/*.zip dist/SHA256SUMS \
+            --draft --verify-tag --title "$GITHUB_REF_NAME" --notes-file release-notes.md
