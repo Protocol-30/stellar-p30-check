@@ -4,8 +4,8 @@
 |----|--------|--------|
 | [P30-DEP-001](#p30-dep-001-stellar-sdk-version) | Stellar SDK versions in Go and npm manifests | Shipped (Phase 8.2) |
 | [P30-ADDR-001](#p30-addr-001-w-address-handling) | Address handling that rejects CAP-84 `W` addresses | Shipped (Phase 8.3) |
-| P30-XDR-001 | Ledger-header decoding with a pre-Protocol 30 XDR library | Planned (Phase 8.4) |
-| P30-TS-001 | Assumptions of strictly increasing whole-second close times | Planned (Phase 8.4) |
+| [P30-XDR-001](#p30-xdr-001-ledger-xdr) | Ledger decoding that will fail on CAP-88 ledgers | Shipped (Phase 8.4) |
+| [P30-TS-001](#p30-ts-001-close-times) | Code that assumes whole-second close times differ between ledgers | Shipped (Phase 8.4) |
 
 ## P30-DEP-001: Stellar SDK version
 
@@ -191,3 +191,72 @@ All cases: [testdata/rules/addr-001](../testdata/rules/addr-001/README.md).
   suppresses top-level allowlists in that file.
 - **False negative:** JS/TS checks spread over several statements, such as an
   `if` / `else if` chain.
+
+## P30-XDR-001: ledger XDR
+
+After the upgrade every ledger header carries a new CAP-88 `StellarValue`
+arm, `STELLAR_VALUE_SIGNED_MS` or `STELLAR_VALUE_EMPTY_TX_SET_MS`, and the
+old whole-second arms are no longer valid ([evidence.md](evidence.md) E18).
+Code built on older XDR fails to decode those headers or takes the wrong
+branch. This rule looks for four things.
+
+| Situation | Severity | Confidence |
+|-----------|----------|-----------|
+| A file decodes ledger data and its project's SDK version has no Protocol 30 XDR (exact version) | high | high |
+| Same, but the version comes from a `package.json` range | high | low |
+| Vendored `.x` file: `StellarValueType` without `STELLAR_VALUE_SIGNED_MS`, or `SCAddressType` without `SC_ADDRESS_TYPE_MUXED_CONTRACT` | high | high |
+| Vendored `.x` file: that member exists only inside `#ifdef` | medium | low |
+| `StellarValueType` switch with old arms, no `_MS` arm, no `default` | high | medium |
+| Same, with `default` | medium | medium |
+| Go: `== xdr.StellarValueTypeStellarValueSigned` (or `EmptyTxSet`) in a function that never mentions the `_MS` arms | medium | medium |
+| Go: `MustLcValueSignature()` on the `StellarValueExt` union (panics after the upgrade) | high | high |
+| Go: `GetLcValueSignature()` on the union (finds no signature after the upgrade) | medium | high |
+
+**Ledger decoding** means:
+- **Go:** a reference to `xdr.LedgerHeader`, `LedgerHeaderHistoryEntry`, `LedgerCloseMeta`, `LedgerCloseMetaBatch` or `StellarValue` from the Stellar `xdr` package, or an import of its `ingest`, `ingest/ledgerbackend` or `historyarchive` packages.
+- **JS/TS:** `LedgerHeader.fromXDR`, `LedgerHeaderHistoryEntry.fromXDR`, `LedgerCloseMeta.fromXDR` or `StellarValue.fromXDR`, or a `.getLedgers(` call. Old JS SDKs decode the headers inside `getLedgers` (E21).
+
+The SDK version comes from the same resolution as P30-DEP-001: the closest `go.mod`, or the closest npm lockfile or `package.json` above the file. In npm workspaces, the copy under `packages/web/node_modules` applies to `packages/web`. The finding is on the line that decodes, and its evidence names the manifest line the version came from. With no resolvable SDK, nothing is reported.
+
+The signature accessors are not reported when the same function also handles the `_MS` arms or calls `LedgerCloseValueSignature()`, or when they are called on a specific arm, such as `MustSignedMsValue().LcValueSignature`.
+
+Fixes:
+- **SDK:** upgrade to go-stellar-sdk v0.8.0+ or @stellar/stellar-sdk 17.3.0+; 16.4.x also decodes Protocol 30 ledgers.
+- **Switches:** add the `_MS` cases. They carry the same fields plus `closeTimeMs`.
+- **Signatures:** use `LedgerCloseValueSignature()` (go-stellar-sdk v0.8.0+).
+- **Vendored `.x` files:** update them from stellar-xdr `curr` and regenerate.
+
+All cases: [testdata/rules/xdr-001](../testdata/rules/xdr-001/README.md).
+
+Known false positives and negatives:
+- **False positive:** a decoder that only reads historical ledgers from before the upgrade keeps working on an old SDK.
+- **False positive:** a `StellarValueType` comparison whose branch does not matter for the new arms.
+- **False negative:** decoding through helpers in another file or package, raw `UnmarshalBinary` calls on untyped buffers, and generic `fromXDR` wrappers.
+- **False negative:** XDR decoders in other languages, and generated code from `.x` files that are not in the repository.
+
+## P30-TS-001: close times
+
+CAP-88 makes the effective close time millisecond-based. The whole-second
+`closeTime` (Go `CloseTime`, RPC `LedgerCloseTime`, Horizon `ClosedAt`; JS
+`closeTime`, `ledgerCloseTime`, `closed_at`, `closedAt`) can now be the same
+for consecutive ledgers (E18).
+
+| Situation | Severity | Confidence |
+|-----------|----------|-----------|
+| Dividing (or `%`) by the difference of two close times: `a - b`, `a.Sub(b)`, through conversions and `.Seconds()` | medium | medium |
+| Comparing two close times: `<`, `>`, `<=`, `>=`, `==`, `!=`, `Before`, `After`, `Equal` | info | low |
+
+The divisor can become 0. A comparison may assume close times strictly
+increase; that is only a hint, because comparing two times is often fine.
+Comparing one close time with a deadline, `CloseTimeMs` values, and ledger
+sequence numbers are not reported. In JS a close time must be a member
+access (`.closeTime`), so a local variable called `closeTime` is ignored.
+
+Fix: guard the divisor, or use `closeTimeMs`, which strictly increases.
+Ledger sequence numbers still increase by one per ledger.
+
+All cases: [testdata/rules/ts-001](../testdata/rules/ts-001/README.md).
+
+Known false positives and negatives:
+- **False positive:** a JS object field called `closeTime` that is not a ledger close time (for example opening hours).
+- **False negative:** differences stored in a variable before dividing, durations from `time.Since`, and close times read through getters with other names.

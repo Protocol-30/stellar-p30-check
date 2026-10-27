@@ -16,6 +16,7 @@ the JS/TS tokenizer or the address matchers, run the fuzzers for a while:
 ```sh
 go test ./internal/rules -run=NONE -fuzz=FuzzJSAddressObservations -fuzztime=60s
 go test ./internal/rules -run=NONE -fuzz=FuzzGoAddressObservations -fuzztime=60s
+go test ./internal/rules -run=NONE -fuzz=FuzzLedgerObservations -fuzztime=60s
 ```
 
 Crashers land in `internal/rules/testdata/fuzz/`; commit them with the fix.
