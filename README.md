@@ -5,7 +5,7 @@ An offline, read-only command-line scanner that flags Stellar
 repositories: outdated SDKs, address validation that rejects CAP-84 `W`
 muxed-contract addresses, and ledger-header decoding that predates CAP-88.
 
-> **Status: v0.1.0 released; DripWave Phase 10 (repo hygiene) in progress.**
+> **Status: v0.1.0 released; DripWave Phases 1–10 done.**
 > All four planned rules ship:
 > [P30-DEP-001](docs/rules.md#p30-dep-001-stellar-sdk-version) (SDK versions),
 > [P30-ADDR-001](docs/rules.md#p30-addr-001-w-address-handling) (address

@@ -17,8 +17,8 @@ ships something that works and is tested.
 | 6–7 Coding-agent prompts | [AGENTS.md](../AGENTS.md) | Done |
 | 8 Build and test locally | Steps below; results in [verification.md](verification.md) | Done |
 | 9 Distribution | Reproducible release archives and `SHA256SUMS` (`scripts/release-build.sh`), a tag-triggered workflow that drafts the release, [ci-integration.md](ci-integration.md), [release.md](release.md). No hosting. | Done: [v0.1.0](https://github.com/Protocol-30/stellar-p30-check/releases/tag/v0.1.0) published 2026-10-27; its archives match an independent rebuild byte for byte |
-| **10 Repo hygiene** | LICENSE, branch protection on real CI job names, topics, issues from the backlog, release tag | **In progress.** Done: LICENSE, CONTRIBUTING, SECURITY, CI workflow, release tag `v0.1.0`, default branch `main`, issue and PR templates, Dependabot for workflow actions, backlog filed as [issues](https://github.com/Protocol-30/stellar-p30-check/issues). Owner settings (rulesets on the five CI checks, tag protection, private vulnerability reporting, topics): [maintaining.md](maintaining.md) |
-| 11 Documentation | Rule catalog and CI guide; a docs site only if the README stops being enough | Not started |
+| 10 Repo hygiene | LICENSE, branch protection on real CI job names, topics, issues from the backlog, release tag | Done (2026-10-27): LICENSE, CONTRIBUTING, SECURITY, CI, release tag `v0.1.0`, default branch `main`, issue and PR templates, Dependabot for workflow actions, backlog filed as [issues](https://github.com/Protocol-30/stellar-p30-check/issues), and the owner settings in [maintaining.md](maintaining.md): `main` ruleset on the five CI checks, `v*` tag ruleset, private vulnerability reporting, Dependabot alerts, secret scanning, topics |
+| **11 Documentation** | Rule catalog and CI guide; a docs site only if the README stops being enough | **Next** |
 | 12 Wave submission | Re-check Drips Wave eligibility and the approved-repo list, then submit | Not started |
 | 13 Iteration | Testnet feedback from the Nov 3 vote, Mainnet hardening before the Nov 23 vote, SARIF / GitHub Action | Not started |
 
