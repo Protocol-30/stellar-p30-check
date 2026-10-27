@@ -172,15 +172,20 @@ func TestFlagsBeforeOrAfterPath(t *testing.T) {
 // TestGoldenReports pins the full text and JSON output for the discovery
 // fixtures. Run "go test ./internal/cli -update" after an intended change.
 func TestGoldenReports(t *testing.T) {
-	for _, fixture := range []string{"go-module", "js-app"} {
+	targets := map[string]string{ // golden name -> target relative to the repository root
+		"go-module":              "testdata/fixtures/go-module",
+		"js-app":                 "testdata/fixtures/js-app",
+		"integration-legacy-app": "testdata/integration/legacy-app",
+		"integration-modern-app": "testdata/integration/modern-app",
+	}
+	for fixture, target := range targets {
 		for _, format := range []string{"text", "json"} {
 			t.Run(fixture+"/"+format, func(t *testing.T) {
-				target := "testdata/fixtures/" + fixture
 				// Run from the repository root so the echoed target is
 				// relative and identical on every machine.
 				t.Chdir("../..")
 				code, stdout, stderr := run(t, nil, "scan", target, "--format", format)
-				if code != ExitOK {
+				if code != ExitOK || stderr != "" {
 					t.Fatalf("exit=%d stderr=%q", code, stderr)
 				}
 				_, again, _ := run(t, nil, "scan", target, "--format", format)
@@ -206,6 +211,72 @@ func TestGoldenReports(t *testing.T) {
 					t.Errorf("output differs from %s; rerun with -update if intended\n--- got\n%s", golden, stdout)
 				}
 			})
+		}
+	}
+}
+
+// TestIntegrationApps scans two small projects end to end with the default
+// rule set: the legacy one must trip every rule and the CI gate, the modern
+// one must produce no findings or warnings at all.
+func TestIntegrationApps(t *testing.T) {
+	t.Chdir("../..")
+	type rep struct {
+		Findings []report.Finding `json:"findings"`
+		Warnings []report.Warning `json:"warnings"`
+	}
+	scan := func(target string) (int, rep) {
+		code, stdout, stderr := run(t, nil, "scan", target, "--format", "json", "--fail-on", "high")
+		var r rep
+		if err := json.Unmarshal([]byte(stdout), &r); err != nil {
+			t.Fatalf("%s: bad JSON (stderr %q): %v", target, stderr, err)
+		}
+		return code, r
+	}
+
+	code, legacy := scan("testdata/integration/legacy-app")
+	if code != ExitGated {
+		t.Errorf("legacy-app exit = %d, want %d", code, ExitGated)
+	}
+	byRule := map[string]int{}
+	for _, f := range legacy.Findings {
+		byRule[f.RuleID]++
+	}
+	for _, id := range rules.Planned {
+		if byRule[id] == 0 {
+			t.Errorf("legacy-app: no %s finding; got %v", id, byRule)
+		}
+	}
+
+	code, modern := scan("testdata/integration/modern-app")
+	if code != ExitOK || len(modern.Findings) != 0 || len(modern.Warnings) != 0 {
+		t.Errorf("modern-app: exit=%d findings=%+v warnings=%+v", code, modern.Findings, modern.Warnings)
+	}
+}
+
+// TestSelfScan scans this repository with the default rules. Everything
+// reported must come from the deliberate fixtures under testdata/; the
+// scanner's own code must be clean.
+func TestSelfScan(t *testing.T) {
+	t.Chdir("../..")
+	code, stdout, stderr := run(t, nil, "scan", ".", "--format", "json")
+	if code != ExitOK {
+		t.Fatalf("exit=%d stderr=%q", code, stderr)
+	}
+	var r struct {
+		Findings []report.Finding `json:"findings"`
+		Warnings []report.Warning `json:"warnings"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &r); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range r.Findings {
+		if !strings.HasPrefix(f.Path, "testdata/") {
+			t.Errorf("finding outside testdata: %s:%d %s", f.Path, f.Line, f.Message)
+		}
+	}
+	for _, w := range r.Warnings {
+		if w.Path != "" && !strings.HasPrefix(w.Path, "testdata/") {
+			t.Errorf("warning outside testdata: %+v", w)
 		}
 	}
 }

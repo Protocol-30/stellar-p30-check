@@ -1,0 +1,20 @@
+p30check 0.1.0-dev - Stellar Protocol 30 compatibility scan (report schema 1)
+Target:     testdata/integration/modern-app
+Checked at: 2026-10-25T12:00:00Z
+Inventory:  2 manifest file(s), 3 source file(s), 0 skipped entries
+Rules run:  4
+
+Findings (0): none reported
+
+Discovered files:
+  manifest go-mod           indexer/go.mod
+  source   source-go        indexer/ledger.go
+  manifest package-json     web/package.json
+  source   source-ts        web/src/ledgers.ts
+  source   source-ts        web/src/send.ts
+
+Limitations:
+  - Static, offline analysis only: scanned code is never executed, and no network or RPC calls are made.
+  - A finding is an indication to review, not proof of runtime breakage; no findings is not proof of Protocol 30 compatibility.
+  - Stellar's November 3, 2026 (Testnet) and November 23, 2026 (Mainnet) dates are upgrade votes, not guaranteed activation dates.
+  - Ignored directories, symlinks that are not followed, and files over the size limit are not inspected; see the skipped list.
