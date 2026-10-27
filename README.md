@@ -13,10 +13,9 @@ muxed-contract addresses, and ledger-header decoding that predates CAP-88.
 > (ledger decoding that fails on CAP-88 ledgers) and
 > [P30-TS-001](docs/rules.md#p30-ts-001-close-times) (close-time
 > assumptions). Verification results: [docs/verification.md](docs/verification.md).
-> Next is Phase 9, release binaries. See [docs/roadmap.md](docs/roadmap.md) and
+> Phase 9 (release binaries) is prepared and waits on the owner; see
+> [docs/release.md](docs/release.md). See [docs/roadmap.md](docs/roadmap.md) and
 > [docs/limitations.md](docs/limitations.md).
-
-`stellar-p30-check` is a working name.
 
 ## Quick start
 
@@ -72,6 +71,8 @@ difference of whole-second close times.
 
 Details and known false positives: [docs/rules.md](docs/rules.md).
 
+Using it in CI (GitHub Actions, GitLab): [docs/ci-integration.md](docs/ci-integration.md).
+
 ## Usage
 
 ```text
@@ -113,9 +114,12 @@ Flags may come before or after the path.
 - [docs/limitations.md](docs/limitations.md) — what a scan can and cannot tell you
 - [docs/evidence.md](docs/evidence.md) — verified Protocol 30 / SDK facts with sources and dates
 - [docs/verification.md](docs/verification.md) — what was tested, on what, and the results
+- [docs/ci-integration.md](docs/ci-integration.md) — installing and gating in CI
+- [docs/release.md](docs/release.md) — how releases are built and published
 - [docs/plan/](docs/plan/) — original build plan and backlog
 - [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [CHANGELOG.md](CHANGELOG.md)
 
 ## License
 
-Not yet chosen; the repository owner will add a `LICENSE` file.
+Apache License 2.0; see [LICENSE](LICENSE). This is the license the
+official Stellar Go and JS SDKs and stellar-xdr use.

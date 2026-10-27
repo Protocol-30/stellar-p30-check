@@ -7,6 +7,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"runtime/debug"
+	"strings"
 	"time"
 
 	"github.com/Protocol-30/stellar-p30-check/internal/report"
@@ -22,9 +24,25 @@ const (
 	ExitError = 2 // invalid usage or the scan could not complete
 )
 
-// Version is the tool version, overridable at build time with
-// -ldflags "-X github.com/Protocol-30/stellar-p30-check/internal/cli.Version=...".
-var Version = "0.1.0-dev"
+// Version is set by release builds with
+// -ldflags "-X github.com/Protocol-30/stellar-p30-check/internal/cli.Version=0.1.0".
+// When empty, ToolVersion falls back to the module version Go records for
+// "go install ...@v0.1.0" and VCS builds, then to devVersion.
+var Version = ""
+
+const devVersion = "0.1.0-dev"
+
+// ToolVersion returns the version printed by "p30check version" and
+// written to reports.
+func ToolVersion() string {
+	if Version != "" {
+		return Version
+	}
+	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+		return strings.TrimPrefix(bi.Main.Version, "v")
+	}
+	return devVersion
+}
 
 // Env carries the process environment so tests can inject output streams,
 // a fixed clock and rules.
@@ -116,7 +134,7 @@ func Run(ctx context.Context, args []string, env Env) int {
 		printUsage(env.Stdout)
 		return ExitOK
 	case "version", "--version":
-		fmt.Fprintf(env.Stdout, "p30check %s (report schema %s)\n", Version, report.SchemaVersion)
+		fmt.Fprintf(env.Stdout, "p30check %s (report schema %s)\n", ToolVersion(), report.SchemaVersion)
 		return ExitOK
 	case "scan":
 		return runScan(ctx, args[1:], env)
@@ -167,7 +185,7 @@ func runScan(ctx context.Context, args []string, env Env) int {
 	}
 	rep, err := scan.Run(ctx, scan.Config{
 		Target:      paths[0],
-		ToolVersion: Version,
+		ToolVersion: ToolVersion(),
 		Walk: walker.Options{
 			MaxFileBytes:   *maxFileBytes,
 			MaxFiles:       *maxFiles,

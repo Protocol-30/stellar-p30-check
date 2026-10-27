@@ -32,3 +32,19 @@ jobs:
         run: go test -race ./...
       - name: build
         run: go build ./cmd/p30check
+
+  release-build:
+    name: release build (snapshot)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: build all release targets
+        run: scripts/release-build.sh 0.0.0-snapshot
+      - name: verify
+        run: |
+          (cd dist && sha256sum -c SHA256SUMS)
+          tar -xzf dist/p30check_0.0.0-snapshot_linux_amd64.tar.gz -C "$RUNNER_TEMP"
+          "$RUNNER_TEMP/p30check_0.0.0-snapshot_linux_amd64/p30check" version | grep -q "p30check 0.0.0-snapshot"

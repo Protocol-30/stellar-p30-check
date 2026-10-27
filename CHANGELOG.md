@@ -2,7 +2,29 @@
 
 ## Unreleased
 
+## v0.1.0 - 2026-10-27
+
+First release. `p30check` is an offline, read-only scanner that flags Stellar
+Protocol 30 compatibility risks in Go and JavaScript/TypeScript
+repositories, with four rules: outdated SDK versions (P30-DEP-001), address
+checks that reject CAP-84 `W` addresses (P30-ADDR-001), ledger decoding that
+fails on CAP-88 ledgers (P30-XDR-001) and close-time assumptions
+(P30-TS-001). Findings are static indications, not proof of breakage or of
+compatibility; see
+[limitations](https://github.com/Protocol-30/stellar-p30-check/blob/v0.1.0/docs/limitations.md)
+and [rules](https://github.com/Protocol-30/stellar-p30-check/blob/v0.1.0/docs/rules.md).
+Verify downloads against `SHA256SUMS`; see the
+[CI guide](https://github.com/Protocol-30/stellar-p30-check/blob/v0.1.0/docs/ci-integration.md).
+
 ### Added
+- Apache License 2.0 (`LICENSE`).
+- Release tooling: `scripts/release-build.sh` builds reproducible archives
+  for linux/darwin/windows on amd64/arm64 plus `SHA256SUMS`;
+  `.github/workflows/release.yml` drafts a GitHub release on a `v*` tag; CI
+  builds a snapshot of every target on each pull request.
+- `p30check version` reports the module version for `go install` and VCS
+  builds when no release version was linked in.
+- docs/ci-integration.md and docs/release.md.
 - Integration fixtures (`testdata/integration`), a malformed-input scan
   test, a whole-pipeline fuzzer (`FuzzCheckAll`), a self-scan test and
   docs/verification.md.

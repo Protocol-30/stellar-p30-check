@@ -12,12 +12,12 @@ ships something that works and is tested.
 | Phase | What it means here | Status |
 |-------|--------------------|--------|
 | 1–3 Recon, ideas, critical review | Protocol 30 problem verified; this scanner chosen as the project | Done (planning package) |
-| 4 Naming and scoping | Working name `stellar-p30-check`; one repository; scope fence in [plan/BUILD_PLAN.md](plan/BUILD_PLAN.md) | Final name is the owner's call |
+| 4 Naming and scoping | Name `stellar-p30-check` (binary `p30check`); one repository; scope fence in [plan/BUILD_PLAN.md](plan/BUILD_PLAN.md) | Done |
 | 5 Architecture | Pipeline, report schema, exit codes: [architecture.md](architecture.md); sourced facts: [evidence.md](evidence.md) | Done |
 | 6–7 Coding-agent prompts | [AGENTS.md](../AGENTS.md) | Done |
 | 8 Build and test locally | Steps below; results in [verification.md](verification.md) | Done |
-| **9 Distribution** | Tagged release with binaries and checksums; CI usage guide. No hosting. | **Next** (publishing a release needs the owner's approval) |
-| 10 Repo hygiene | LICENSE, branch protection on real CI job names, topics, issues from the backlog, release tag | Partly done (CONTRIBUTING, SECURITY, CI workflow) |
+| **9 Distribution** | Reproducible release archives and `SHA256SUMS` (`scripts/release-build.sh`), a tag-triggered workflow that drafts the release, [ci-integration.md](ci-integration.md), [release.md](release.md). No hosting. | **Ready; waiting on the owner** (default branch to `main`, then the go-ahead to tag `v0.1.0`) |
+| 10 Repo hygiene | LICENSE, branch protection on real CI job names, topics, issues from the backlog, release tag | Partly done (LICENSE, CONTRIBUTING, SECURITY, CI workflow) |
 | 11 Documentation | Rule catalog and CI guide; a docs site only if the README stops being enough | Not started |
 | 12 Wave submission | Re-check Drips Wave eligibility and the approved-repo list, then submit | Not started |
 | 13 Iteration | Testnet feedback from the Nov 3 vote, Mainnet hardening before the Nov 23 vote, SARIF / GitHub Action | Not started |
