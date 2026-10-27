@@ -6,7 +6,7 @@ code. A CI job therefore needs only read access to the checkout.
 
 ## Install
 
-**Release binary** (once a release is published). Download the archive for
+**Release binary.** Download the archive for
 the runner and verify it against `SHA256SUMS` before running it:
 
 ```sh
@@ -33,7 +33,7 @@ change your build's result without a commit on your side.
 
 ## Gate on what is certain, record everything
 
-- `--fail-on high` exits 1 only for findings that are **both** high severity and high confidence: an outdated SDK pinned exactly, an address regex or SDK check that rejects `W` alongside `M` and `C`, a confirmed decoder mismatch. Medium and low-confidence findings never fail the job.
+- `--fail-on high` exits 1 only for findings that are **both** high severity and high confidence: an exact SDK version with no Protocol 30 support, an address regex or SDK check that accepts `M` and `C` but not `W`, ledger decoding in a project whose exact SDK version cannot decode Protocol 30 ledgers, a vendored `.x` file without the new arms, and `MustLcValueSignature()` on the `StellarValueExt` union. Everything else is reported but never fails the job.
 - The default, `--fail-on none`, always exits 0 when the scan completes.
 - Exit code 2 means the scan itself failed: a bad path, a file-count ceiling, or a usage error. Treat it as a broken job, not a pass.
 - Keep the full JSON report as an artifact so reviewers can see everything else.
@@ -87,7 +87,9 @@ p30check:
 
 ## Reading the JSON report
 
-The report schema is described in [architecture.md](architecture.md):
+What the findings, warnings and skipped entries mean, and what to do
+about each: [reading-reports.md](reading-reports.md). The schema is in
+[architecture.md](architecture.md):
 - `findings[]` carries `rule_id`, `severity`, `confidence`, `path`, `line`, `evidence`, `remediation` and `references`;
 - `warnings[]` lists files the scanner could not read or rules that do not apply;
 - `summary` holds counts.

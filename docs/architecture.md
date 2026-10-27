@@ -14,7 +14,7 @@ CLI flags ──> walker ──> rules ──> report.New ──> text | JSON �
 | `internal/cli` | Argument parsing (flags before or after the path), usage errors, exit-code policy (`Gated`, `ExitCode`). |
 | `internal/scan` | Orchestration: walk, run rules, validate findings, add coverage warnings, build the report. Owns `Limitations`. |
 | `internal/walker` | Root-bound discovery. Stats entries only; never reads contents. |
-| `internal/rules` | `Rule` interface, the shipped rule set (`Default()`) and the rules themselves, including a small JS/TS tokenizer (`jslex.go`) and the SDK version resolution shared by P30-DEP-001 and P30-XDR-001 (`sdkuse.go`); Go source is parsed with `go/parser`. |
+| `internal/rules` | `Rule` interface, the shipped rule set (`Default()`) and the rules themselves, including a small JS/TS tokenizer (`jslex.go`) with a bracket index (`jsindex.go`), memoised Go scope checks (`gomentions.go`), and the SDK version resolution shared by P30-DEP-001 and P30-XDR-001 (`sdkuse.go`); Go source is parsed with `go/parser`. |
 | `internal/deps` | `go.mod`, `package.json` and npm lockfile parsers, semver, and the sourced SDK capability table. |
 | `internal/report` | Versioned report model, sorting, summary, text and JSON renderers. |
 
@@ -33,9 +33,9 @@ CLI flags ──> walker ──> rules ──> report.New ──> text | JSON �
   `--follow-symlinks`, a link to a regular file is included only if its
   resolved target is inside the root; symlinked directories are never
   followed, which rules out cycles.
-- Ceilings: file size (`--max-file-bytes`, default 2 MiB; larger files are
-  skipped and listed; default 16 MiB, since npm lockfiles in large repos run to
-  several MiB), relevant files (`--max-files`, default 20000), total
+- Ceilings: file size (`--max-file-bytes`, default 16 MiB, since npm
+  lockfiles in large repos run to several MiB; larger files are skipped and
+  listed), relevant files (`--max-files`, default 20000), total
   entries (500000) and depth (64). Hitting a count or depth ceiling is an
   error (exit 2) with no partial report, so a truncated scan cannot look
   complete.

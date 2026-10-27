@@ -93,5 +93,5 @@ Checks:
 ## Not verified
 
 - Behaviour against real repositories other than the SDKs themselves.
-- Ledgers captured from Testnet after the Protocol 30 vote. They do not exist yet; this is Phase 13 work.
-- Windows. CI covers Linux and macOS only.
+- Ledgers captured from Testnet after the Protocol 30 vote. They do not exist yet; this is Phase 13 work ([#10](https://github.com/Protocol-30/stellar-p30-check/issues/10)).
+- Windows. CI covers Linux and macOS only ([#12](https://github.com/Protocol-30/stellar-p30-check/issues/12)).
