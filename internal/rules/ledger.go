@@ -34,59 +34,53 @@ func (LedgerXDR) ID() string { return LedgerXDRID }
 const refStellarXDR = "https://github.com/stellar/stellar-xdr/blob/curr/Stellar-ledger.x"
 
 // Check implements Rule.
-func (LedgerXDR) Check(ctx context.Context, in Input) (Output, error) {
+func (r LedgerXDR) Check(ctx context.Context, in Input) (Output, error) {
+	return checkSource(ctx, in, r)
+}
+
+func (LedgerXDR) prepare(ctx context.Context, in Input) (func(*sourceFile) Output, error) {
 	uses, _, err := collectSDKUses(ctx, in, LedgerXDRID) // manifest warnings are P30-DEP-001's to report
 	if err != nil {
-		return Output{}, err
+		return nil, err
 	}
-	var out Output
-	for _, f := range in.Files {
-		if err := ctx.Err(); err != nil {
-			return Output{}, err
-		}
-		if f.Kind == "xdr-definition" {
-			data, err := in.ReadFile(f.Path)
-			if err != nil {
-				out.Warnings = append(out.Warnings, sourceWarning(f.Path, err))
-				continue
+	return func(sf *sourceFile) Output {
+		var out Output
+		if sf.Kind == "xdr-definition" {
+			if sf.readErr != nil {
+				out.Warnings = append(out.Warnings, sourceWarning(sf.Path, sf.readErr))
+				return out
 			}
-			out.Findings = append(out.Findings, xdrDefinitionFindings(f.Path, data)...)
-			continue
+			out.Findings = xdrDefinitionFindings(sf.Path, sf.data)
+			return out
 		}
-		if !isCodeKind(f.Kind) || isTestFile(f.Path) {
-			continue
+		if !isCodeKind(sf.Kind) || isTestFile(sf.Path) {
+			return out
 		}
-		data, err := in.ReadFile(f.Path)
-		if err != nil {
-			out.Warnings = append(out.Warnings, sourceWarning(f.Path, err))
-			continue
+		if err := sf.codeProblem(); err != nil {
+			out.Warnings = append(out.Warnings, sourceWarning(sf.Path, err))
+			return out
 		}
 		var lo ledgerObservations
 		eco := deps.NPM
-		if f.Kind == "source-go" {
+		if sf.goAST != nil {
 			eco = deps.Go
-			lo, err = goLedgerObservations(f.Path, data)
-			if err != nil {
-				out.Warnings = append(out.Warnings, sourceWarning(f.Path, err))
-				continue
-			}
+			lo = goLedgerObs(sf.fset, sf.goAST)
 		} else {
-			lo = jsLedgerObservations(data)
+			lo = jsLedgerObs(sf.js)
 		}
-		lines := strings.Split(string(data), "\n")
 		if lo.decodeLine > 0 {
-			if fd, ok := decodeFinding(f.Path, lines, lo, nearestUses(uses, eco, path.Dir(f.Path))); ok {
+			if fd, ok := decodeFinding(sf.Path, sf.lines, lo, nearestUses(uses, eco, path.Dir(sf.Path))); ok {
 				out.Findings = append(out.Findings, fd)
 			}
 		}
 		for _, o := range lo.other {
-			o.RuleID, o.Path = LedgerXDRID, f.Path
-			o.Evidence = snippet(lines, o.Line)
+			o.RuleID, o.Path = LedgerXDRID, sf.Path
+			o.Evidence = snippet(sf.lines, o.Line)
 			o.References = []string{deps.RefCAP88, deps.RefGoChangelog, refStellarXDR}
 			out.Findings = append(out.Findings, o)
 		}
-	}
-	return out, nil
+		return out
+	}, nil
 }
 
 // ledgerObservations are the P30-XDR-001 shapes found in one source file.
@@ -163,6 +157,10 @@ func goLedgerObservations(filename string, src []byte) (ledgerObservations, erro
 	if err != nil {
 		return ledgerObservations{}, err
 	}
+	return goLedgerObs(fset, file), nil
+}
+
+func goLedgerObs(fset *token.FileSet, file *ast.File) ledgerObservations {
 	var lo ledgerObservations
 	line := func(n ast.Node) int { return fset.Position(n.Pos()).Line }
 	noteDecode := func(n ast.Node, what string) {
@@ -171,6 +169,7 @@ func goLedgerObservations(filename string, src []byte) (ledgerObservations, erro
 		}
 	}
 
+	handlesMs := newGoMentions(file, identIn(goMsMarkers))
 	xdrNames := map[string]bool{}
 	for _, imp := range file.Imports {
 		p, _ := strconv.Unquote(imp.Path.Value)
@@ -221,7 +220,7 @@ func goLedgerObservations(filename string, src []byte) (ledgerObservations, erro
 			if !goOldValueTypes[name] {
 				name = selectorName(n.Y)
 			}
-			if goOldValueTypes[name] && !goFuncMentions(file, n.Pos(), goMsMarkers) {
+			if goOldValueTypes[name] && !handlesMs.at(n.Pos()) {
 				lo.other = append(lo.other, report.Finding{
 					Severity: report.SeverityMedium, Confidence: report.ConfidenceMedium, Line: line(n),
 					Message:     fmt.Sprintf("compares a StellarValue type with %s only; after the Protocol 30 upgrade ledgers use the _MS arms (CAP-88), so this branch changes behaviour", name),
@@ -236,7 +235,7 @@ func goLedgerObservations(filename string, src []byte) (ledgerObservations, erro
 			if recv, ok := sel.X.(*ast.CallExpr); ok && goArmAccessors[selectorName(recv.Fun)] {
 				return true // reading the signature of a specific arm, which is fine
 			}
-			if goFuncMentions(file, n.Pos(), goMsMarkers) {
+			if handlesMs.at(n.Pos()) {
 				return true
 			}
 			f := report.Finding{
@@ -254,7 +253,7 @@ func goLedgerObservations(filename string, src []byte) (ledgerObservations, erro
 		}
 		return true
 	})
-	return lo, nil
+	return lo
 }
 
 func valueTypeSwitchFinding(line int, hasDefault bool) report.Finding {
@@ -272,26 +271,6 @@ func valueTypeSwitchFinding(line int, hasDefault bool) report.Finding {
 	return f
 }
 
-// goFuncMentions reports whether the top-level function containing pos
-// (or the whole file, outside functions) mentions any of the identifiers.
-func goFuncMentions(file *ast.File, pos token.Pos, names map[string]bool) bool {
-	var scope ast.Node = file
-	for _, d := range file.Decls {
-		if fd, ok := d.(*ast.FuncDecl); ok && fd.Pos() <= pos && pos < fd.End() {
-			scope = fd
-			break
-		}
-	}
-	found := false
-	ast.Inspect(scope, func(n ast.Node) bool {
-		if id, ok := n.(*ast.Ident); ok && names[id.Name] {
-			found = true
-		}
-		return !found
-	})
-	return found
-}
-
 // JS names: XDR types decoded with fromXDR, and the RPC call that decodes
 // ledger headers inside the SDK (docs/evidence.md E18).
 var (
@@ -301,9 +280,16 @@ var (
 )
 
 func jsLedgerObservations(src []byte) ledgerObservations {
-	toks := jsTokenize(src)
-	at := func(i int, kind jsKind, text string) bool {
-		return i >= 0 && i < len(toks) && toks[i].Kind == kind && (text == "" || toks[i].Text == text)
+	return jsLedgerObs(newJSFile(src))
+}
+
+func jsLedgerObs(f *jsFile) ledgerObservations {
+	toks, at := f.toks, f.at
+	isOld := func(j int) bool {
+		return (toks[j].Kind == jsIdent || toks[j].Kind == jsString) && jsOldValueTypes[toks[j].Text]
+	}
+	isMs := func(j int) bool {
+		return (toks[j].Kind == jsIdent || toks[j].Kind == jsString) && jsMsValueTypes[toks[j].Text]
 	}
 	var lo ledgerObservations
 	for i, t := range toks {
@@ -312,32 +298,14 @@ func jsLedgerObservations(src []byte) ledgerObservations {
 			lo.decodeLine, lo.decodeWhat = t.Line, t.Text+".fromXDR"
 		case lo.decodeLine == 0 && at(i, jsPunct, ".") && at(i+1, jsIdent, "getLedgers") && at(i+2, jsPunct, "("):
 			lo.decodeLine, lo.decodeWhat = t.Line, "ledgers from rpc getLedgers()"
-		case at(i, jsIdent, "switch") && at(i+1, jsPunct, "("):
-			open := jsMatch(toks, i+1, "(", ")")
-			if open < 0 || !at(open+1, jsPunct, "{") {
+		default:
+			sw, ok := f.switchAt(i)
+			if !ok {
 				continue
 			}
-			end := jsMatch(toks, open+1, "{", "}")
-			if end < 0 {
-				continue
-			}
-			hasOld, hasMs, hasDefault, depth := false, false, false, 0
-			for j := open + 2; j < end; j++ {
-				tj := toks[j]
-				switch {
-				case tj.Kind == jsPunct && (tj.Text == "{" || tj.Text == "(" || tj.Text == "["):
-					depth++
-				case tj.Kind == jsPunct && (tj.Text == "}" || tj.Text == ")" || tj.Text == "]"):
-					depth--
-				case depth == 0 && at(j, jsIdent, "default") && at(j+1, jsPunct, ":"):
-					hasDefault = true
-				case tj.Kind == jsIdent || tj.Kind == jsString:
-					hasOld = hasOld || jsOldValueTypes[tj.Text]
-					hasMs = hasMs || jsMsValueTypes[tj.Text]
-				}
-			}
-			if hasOld && !hasMs {
-				lo.other = append(lo.other, valueTypeSwitchFinding(t.Line, hasDefault))
+			body0, body1 := sw.bodyOpen+1, sw.bodyClose
+			if f.count("old-value-type", isOld, body0, body1) > 0 && f.count("ms-value-type", isMs, body0, body1) == 0 {
+				lo.other = append(lo.other, valueTypeSwitchFinding(t.Line, sw.hasDefault))
 			}
 		}
 	}

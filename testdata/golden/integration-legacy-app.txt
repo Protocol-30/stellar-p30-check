@@ -1,0 +1,75 @@
+p30check 0.1.0-dev - Stellar Protocol 30 compatibility scan (report schema 1)
+Target:     testdata/integration/legacy-app
+Checked at: 2026-10-25T12:00:00Z
+Inventory:  2 manifest file(s), 3 source file(s), 0 skipped entries
+Rules run:  4
+
+Findings (8): 7 high, 1 medium, 0 info
+  [high severity, high confidence] P30-DEP-001 indexer/go.mod:5
+      github.com/stellar/go-stellar-sdk v0.7.3: no Protocol 30 support; releases before v0.8.0 lack the CAP-88 ledger close-value XDR arms and the CAP-84 W strkey, so they cannot decode ledger headers closed after the upgrade
+      evidence: go.mod requires github.com/stellar/go-stellar-sdk v0.7.3
+      fix:      Upgrade to github.com/stellar/go-stellar-sdk v0.8.0 or later (it requires Go 1.25.0 or newer).
+      ref:      https://github.com/stellar/go-stellar-sdk/blob/v0.8.0/CHANGELOG.md
+      ref:      https://github.com/stellar/stellar-protocol/blob/master/core/cap-0088.md
+      ref:      https://github.com/stellar/stellar-protocol/blob/master/core/cap-0084.md
+  [high severity, high confidence] P30-XDR-001 indexer/ledger.go:9
+      decodes xdr.LedgerCloseMeta with github.com/stellar/go-stellar-sdk v0.7.3, whose XDR lacks the CAP-88 StellarValue arms; every ledger closed after the Protocol 30 upgrade will fail to decode
+      evidence: func Decode(b64 string) (xdr.LedgerCloseMeta, error) {; SDK from indexer/go.mod:5: go.mod requires github.com/stellar/go-stellar-sdk v0.7.3
+      fix:      Upgrade to github.com/stellar/go-stellar-sdk v0.8.0 or later (it requires Go 1.25.0 or newer).
+      ref:      https://github.com/stellar/stellar-protocol/blob/master/core/cap-0088.md
+      ref:      https://stellar.org/blog/developers/bell-protocol-30-upgrade-guide
+      ref:      https://github.com/stellar/go-stellar-sdk/blob/v0.8.0/CHANGELOG.md
+  [high severity, high confidence] P30-XDR-001 indexer/ledger.go:17
+      MustLcValueSignature reads only the STELLAR_VALUE_SIGNED arm and panics on ledgers closed after the Protocol 30 upgrade, which use STELLAR_VALUE_SIGNED_MS (CAP-88)
+      evidence: return h.ScpValue.Ext.MustLcValueSignature().NodeId
+      fix:      Use StellarValueExt.LedgerCloseValueSignature() (go-stellar-sdk v0.8.0+), which reads the signature from every arm.
+      ref:      https://github.com/stellar/stellar-protocol/blob/master/core/cap-0088.md
+      ref:      https://github.com/stellar/go-stellar-sdk/blob/v0.8.0/CHANGELOG.md
+      ref:      https://github.com/stellar/stellar-xdr/blob/curr/Stellar-ledger.x
+  [medium severity, medium confidence] P30-TS-001 indexer/ledger.go:22
+      divides by the difference of two whole-second close times; after CAP-88 consecutive ledgers can close within the same second, so the divisor can be 0
+      evidence: return float64(txs) / float64(cur.ScpValue.CloseTime-prev.ScpValue.CloseTime)
+      fix:      Guard the divisor against 0, or use the millisecond close time (closeTimeMs in the STELLAR_VALUE_SIGNED_MS arm), which strictly increases.
+      ref:      https://github.com/stellar/stellar-protocol/blob/master/core/cap-0088.md
+  [high severity, high confidence] P30-ADDR-001 indexer/ledger.go:27
+      SDK address checks accept G, M, C but not W: muxed-contract addresses (CAP-84) are rejected where muxed and contract addresses are both allowed
+      evidence: return strkey.IsValidEd25519PublicKey(s) ||
+      fix:      If this value can be a payment or transfer destination, accept W too: StrKey.isValidMuxedContract (@stellar/stellar-sdk 17.3.0+) or strkey.IsValidMuxedContractAddress (go-stellar-sdk v0.8.0+). W addresses are 69 characters long, like M addresses.
+      ref:      https://github.com/stellar/stellar-protocol/blob/master/core/cap-0084.md
+      ref:      https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0023.md
+      ref:      https://stellar.org/blog/developers/bell-protocol-30-upgrade-guide
+  [high severity, high confidence] P30-DEP-001 web/package.json:5
+      @stellar/stellar-sdk 16.3.1: no Protocol 30 support; this version lacks the CAP-88 ledger close-value XDR arms and the CAP-84 W strkey; only 16.4.x and 17.3.0+ decode Protocol 30 ledgers
+      evidence: package.json dependencies declares "@stellar/stellar-sdk": "16.3.1"
+      fix:      Upgrade to @stellar/stellar-sdk 17.3.0 or later.
+      ref:      https://stellar.org/blog/developers/bell-protocol-30-upgrade-guide
+      ref:      https://github.com/stellar/stellar-protocol/blob/master/core/cap-0088.md
+      ref:      https://github.com/stellar/stellar-protocol/blob/master/core/cap-0084.md
+      ref:      https://www.npmjs.com/package/@stellar/stellar-sdk
+  [high severity, high confidence] P30-XDR-001 web/src/ledgers.ts:4
+      decodes ledgers from rpc getLedgers() with @stellar/stellar-sdk 16.3.1, whose XDR lacks the CAP-88 StellarValue arms; every ledger closed after the Protocol 30 upgrade will fail to decode
+      evidence: const { ledgers } = await server.getLedgers({ startLedger });; SDK from web/package.json:5: package.json dependencies declares "@stellar/stellar-sdk": "16.3.1"
+      fix:      Upgrade to @stellar/stellar-sdk 17.3.0 or later (16.4.x also decodes Protocol 30 ledgers).
+      ref:      https://github.com/stellar/stellar-protocol/blob/master/core/cap-0088.md
+      ref:      https://stellar.org/blog/developers/bell-protocol-30-upgrade-guide
+      ref:      https://github.com/stellar/go-stellar-sdk/blob/v0.8.0/CHANGELOG.md
+  [high severity, high confidence] P30-ADDR-001 web/src/send.ts:1
+      address regex accepts G, M, C but not W: muxed-contract addresses (CAP-84) are rejected where muxed and contract addresses are both allowed
+      evidence: const DESTINATION = /^[GMC][A-Z2-7]{55}$/;
+      fix:      If this value can be a payment or transfer destination, accept W too: StrKey.isValidMuxedContract (@stellar/stellar-sdk 17.3.0+) or strkey.IsValidMuxedContractAddress (go-stellar-sdk v0.8.0+). W addresses are 69 characters long, like M addresses.
+      ref:      https://github.com/stellar/stellar-protocol/blob/master/core/cap-0084.md
+      ref:      https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0023.md
+      ref:      https://stellar.org/blog/developers/bell-protocol-30-upgrade-guide
+
+Discovered files:
+  manifest go-mod           indexer/go.mod
+  source   source-go        indexer/ledger.go
+  manifest package-json     web/package.json
+  source   source-ts        web/src/ledgers.ts
+  source   source-ts        web/src/send.ts
+
+Limitations:
+  - Static, offline analysis only: scanned code is never executed, and no network or RPC calls are made.
+  - A finding is an indication to review, not proof of runtime breakage; no findings is not proof of Protocol 30 compatibility.
+  - Stellar's November 3, 2026 (Testnet) and November 23, 2026 (Mainnet) dates are upgrade votes, not guaranteed activation dates.
+  - Ignored directories, symlinks that are not followed, and files over the size limit are not inspected; see the skipped list.

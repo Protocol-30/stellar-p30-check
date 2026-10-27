@@ -28,38 +28,33 @@ type Addresses struct{}
 func (Addresses) ID() string { return AddressesID }
 
 // Check implements Rule.
-func (Addresses) Check(ctx context.Context, in Input) (Output, error) {
-	var out Output
-	for _, f := range in.Files {
-		if err := ctx.Err(); err != nil {
-			return Output{}, err
+func (a Addresses) Check(ctx context.Context, in Input) (Output, error) {
+	return checkSource(ctx, in, a)
+}
+
+func (Addresses) prepare(context.Context, Input) (func(*sourceFile) Output, error) {
+	return func(sf *sourceFile) Output {
+		var out Output
+		if !isCodeKind(sf.Kind) || isTestFile(sf.Path) {
+			return out
 		}
-		if !isCodeKind(f.Kind) || isTestFile(f.Path) {
-			continue
-		}
-		data, err := in.ReadFile(f.Path)
-		if err != nil {
-			out.Warnings = append(out.Warnings, sourceWarning(f.Path, err))
-			continue
+		if err := sf.codeProblem(); err != nil {
+			out.Warnings = append(out.Warnings, sourceWarning(sf.Path, err))
+			return out
 		}
 		var obs []observation
-		if f.Kind == "source-go" {
-			obs, err = goAddressObservations(f.Path, data)
-			if err != nil {
-				out.Warnings = append(out.Warnings, sourceWarning(f.Path, err))
-				continue
-			}
+		if sf.goAST != nil {
+			obs = goAddressObs(sf.fset, sf.goAST)
 		} else {
-			obs = jsAddressObservations(data)
+			obs = jsAddressObs(sf.js)
 		}
-		lines := strings.Split(string(data), "\n")
 		for _, o := range obs {
-			if fd, ok := o.finding(f.Path, lines); ok {
+			if fd, ok := o.finding(sf.Path, sf.lines); ok {
 				out.Findings = append(out.Findings, fd)
 			}
 		}
-	}
-	return out, nil
+		return out
+	}, nil
 }
 
 // sourceWarning reports a source file the source rules could not read or

@@ -32,6 +32,10 @@ func goAddressObservations(filename string, src []byte) ([]observation, error) {
 	if err != nil {
 		return nil, err
 	}
+	return goAddressObs(fset, file), nil
+}
+
+func goAddressObs(fset *token.FileSet, file *ast.File) []observation {
 	imports := map[string]string{} // local name -> import path
 	for _, imp := range file.Imports {
 		p, _ := strconv.Unquote(imp.Path.Value)
@@ -107,7 +111,7 @@ func goAddressObservations(filename string, src []byte) ([]observation, error) {
 		return true
 	})
 	goMarkWNearby(file, obs)
-	return obs, nil
+	return obs
 }
 
 // goWMarkers are identifiers that show code handling W addresses.
@@ -120,38 +124,18 @@ var goWMarkers = map[string]bool{
 // goMarkWNearby sets wNearby on observations whose enclosing top-level
 // function (or the file, outside functions) also handles W addresses.
 func goMarkWNearby(file *ast.File, obs []observation) {
-	handlesW := func(n ast.Node) bool {
-		found := false
-		ast.Inspect(n, func(n ast.Node) bool {
-			switch n := n.(type) {
-			case *ast.Ident:
-				found = found || goWMarkers[n.Name]
-			case *ast.BasicLit:
-				found = found || n.Value == `"W"` || n.Value == `'W'`
-			}
-			return !found
-		})
-		return found
-	}
-	var fileW *bool
+	handlesW := newGoMentions(file, func(n ast.Node) bool {
+		switch n := n.(type) {
+		case *ast.Ident:
+			return goWMarkers[n.Name]
+		case *ast.BasicLit:
+			return n.Value == `"W"` || n.Value == `'W'`
+		}
+		return false
+	})
 	for i := range obs {
-		if obs[i].construct == cTypeSwitch {
-			continue
-		}
-		inFunc := false
-		for _, d := range file.Decls {
-			if fd, ok := d.(*ast.FuncDecl); ok && int(fd.Pos()) <= obs[i].pos && obs[i].pos < int(fd.End()) {
-				obs[i].wNearby = handlesW(fd)
-				inFunc = true
-				break
-			}
-		}
-		if !inFunc {
-			if fileW == nil {
-				w := handlesW(file)
-				fileW = &w
-			}
-			obs[i].wNearby = *fileW
+		if obs[i].construct != cTypeSwitch {
+			obs[i].wNearby = handlesW.at(token.Pos(obs[i].pos))
 		}
 	}
 }
