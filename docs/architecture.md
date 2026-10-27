@@ -14,7 +14,7 @@ CLI flags ──> walker ──> rules ──> report.New ──> text | JSON �
 | `internal/cli` | Argument parsing (flags before or after the path), usage errors, exit-code policy (`Gated`, `ExitCode`). |
 | `internal/scan` | Orchestration: walk, run rules, validate findings, add coverage warnings, build the report. Owns `Limitations`. |
 | `internal/walker` | Root-bound discovery. Stats entries only; never reads contents. |
-| `internal/rules` | `Rule` interface, the shipped rule set (`Default()`) and the rules themselves. |
+| `internal/rules` | `Rule` interface, the shipped rule set (`Default()`) and the rules themselves, including a small JS/TS tokenizer (`jslex.go`); Go source is parsed with `go/parser`. |
 | `internal/deps` | `go.mod`, `package.json` and npm lockfile parsers, semver, and the sourced SDK capability table. |
 | `internal/report` | Versioned report model, sorting, summary, text and JSON renderers. |
 
@@ -69,6 +69,7 @@ reported:
 | `check-not-implemented` | Per manifest, when `P30-DEP-001` is absent |
 | `no-relevant-files` | Nothing relevant was found under the target |
 | `manifest-unparsed` | A manifest or lockfile could not be read or parsed |
+| `source-unparsed` | A Go file has a syntax error or a source file could not be read |
 | `lockfile-not-parsed` | A `yarn.lock` or `pnpm-lock.yaml` exists; it is not read yet |
 
 ## Report schema (`schema_version` "1")

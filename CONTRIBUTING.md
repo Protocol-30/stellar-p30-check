@@ -3,12 +3,22 @@
 ## Before you open a PR
 
 ```sh
-gofmt -l .                 # must print nothing
+gofmt -l cmd internal      # must print nothing (testdata holds scan targets)
 go vet ./...
 go test ./...
 go test -race ./...
 go build ./cmd/p30check
 ```
+
+Code that reads scanned files must not panic on any input. After changing
+the JS/TS tokenizer or the address matchers, run the fuzzers for a while:
+
+```sh
+go test ./internal/rules -run=NONE -fuzz=FuzzJSAddressObservations -fuzztime=60s
+go test ./internal/rules -run=NONE -fuzz=FuzzGoAddressObservations -fuzztime=60s
+```
+
+Crashers land in `internal/rules/testdata/fuzz/`; commit them with the fix.
 
 If you change report output on purpose, regenerate the golden files and
 review the diff:

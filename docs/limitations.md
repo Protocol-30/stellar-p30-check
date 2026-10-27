@@ -6,15 +6,18 @@
   under one directory and reports them, with every skipped entry and why.
 - Produces a deterministic text or JSON report and a CI-friendly exit code.
 - Flags official Stellar SDK versions without Protocol 30 support
-  (P30-DEP-001; see [rules.md](rules.md)).
+  (P30-DEP-001) and address checks that reject `W` (P30-ADDR-001); see
+  [rules.md](rules.md).
 
 ## What this build does not do
 
-- **Only the SDK version check (P30-DEP-001) exists.** It does not yet check
-  your own `W` (CAP-84 muxed contract) address handling or CAP-88
-  ledger-header decoding code. Every report says so
-  (`rules-not-implemented` warning). An empty findings list from this build
-  means only that no outdated official SDK version was found.
+- **The ledger-header (CAP-88) and close-time checks do not exist yet.**
+  Every report says so (`rules-not-implemented` warning).
+- The address check recognises specific literal shapes only (see
+  [rules.md](rules.md)). JavaScript and TypeScript are tokenized, not
+  parsed. An empty findings list means no outdated official SDK and none of
+  those shapes were found, not that every address path accepts `W`.
+- Test files are not scanned for address checks.
 - `yarn.lock` and `pnpm-lock.yaml` are not read; ranges in `package.json`
   are judged at their lowest allowed version, with low confidence.
 - It never runs, builds or imports the scanned code, and makes no network or

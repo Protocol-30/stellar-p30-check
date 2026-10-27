@@ -5,10 +5,12 @@ An offline, read-only command-line scanner that flags Stellar
 repositories: outdated SDKs, address validation that rejects CAP-84 `W`
 muxed-contract addresses, and ledger-header decoding that predates CAP-88.
 
-> **Status: v0.1.0-dev, DripWave Phase 8 (build), step 8.2 done.** One rule
-> ships: [P30-DEP-001](docs/rules.md#p30-dep-001-stellar-sdk-version) checks
-> Stellar SDK versions. Address and XDR source checks are not built yet, and
-> every report says so. See [docs/roadmap.md](docs/roadmap.md) and
+> **Status: v0.1.0-dev, DripWave Phase 8 (build), step 8.3 done.** Two rules
+> ship: [P30-DEP-001](docs/rules.md#p30-dep-001-stellar-sdk-version) checks
+> Stellar SDK versions and
+> [P30-ADDR-001](docs/rules.md#p30-addr-001-w-address-handling) finds address
+> checks that reject `W`. The ledger XDR and close-time checks are not built
+> yet, and every report says so. See [docs/roadmap.md](docs/roadmap.md) and
 > [docs/limitations.md](docs/limitations.md).
 
 `stellar-p30-check` is a working name.
@@ -30,7 +32,7 @@ $ ./p30check scan testdata/fixtures/js-app
 p30check 0.1.0-dev - Stellar Protocol 30 compatibility scan (report schema 1)
 Target:     testdata/fixtures/js-app
 ...
-Rules run:  1
+Rules run:  2
 
 Findings (1): 0 high, 1 medium, 0 info
   [medium severity, high confidence] P30-DEP-001 package.json:5
@@ -39,7 +41,7 @@ Findings (1): 0 high, 1 medium, 0 info
       fix:      Upgrade to @stellar/stellar-sdk 17.3.0 or later. Stay on 16.4.x only if the app never parses, validates or displays contract addresses.
 ...
 Warnings (1):
-  [rules-not-implemented] not checked by this build: P30-ADDR-001, P30-XDR-001, P30-TS-001; see docs/roadmap.md
+  [rules-not-implemented] not checked by this build: P30-XDR-001, P30-TS-001; see docs/roadmap.md
 ```
 
 Full outputs: [testdata/golden/](testdata/golden/).
@@ -54,8 +56,14 @@ Full outputs: [testdata/golden/](testdata/golden/).
 | `@stellar/stellar-base`, `stellar-sdk`, `stellar-base` | published versions have no Protocol 30 support |
 
 Versions are read from `go.mod`, `package-lock.json` / `npm-shrinkwrap.json`
-and `package.json`. Details and known false positives:
-[docs/rules.md](docs/rules.md).
+and `package.json`.
+
+It also reads Go and JS/TS source for address checks that accept contract
+(`C`) and muxed (`M`) addresses but not `W`: regexes such as
+`/^[GMC][A-Z2-7]{55}$/`, combined `StrKey.isValid*` calls, prefix checks,
+and `SCAddress` type switches with no muxed-contract case.
+
+Details and known false positives: [docs/rules.md](docs/rules.md).
 
 ## Usage
 

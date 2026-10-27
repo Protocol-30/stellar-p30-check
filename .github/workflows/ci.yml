@@ -23,7 +23,7 @@ jobs:
         with:
           go-version: ${{ matrix.go }}
       - name: gofmt
-        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+        run: test -z "$(gofmt -l cmd internal)" || { gofmt -l cmd internal; exit 1; }
       - name: vet
         run: go vet ./...
       - name: test
