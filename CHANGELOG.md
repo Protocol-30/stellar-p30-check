@@ -3,6 +3,13 @@
 ## Unreleased
 
 ### Added
+- Release tooling: `scripts/release-build.sh` builds reproducible archives
+  for linux/darwin/windows on amd64/arm64 plus `SHA256SUMS`;
+  `.github/workflows/release.yml` drafts a GitHub release on a `v*` tag; CI
+  builds a snapshot of every target on each pull request.
+- `p30check version` reports the module version for `go install` and VCS
+  builds when no release version was linked in.
+- docs/ci-integration.md and docs/release.md.
 - Integration fixtures (`testdata/integration`), a malformed-input scan
   test, a whole-pipeline fuzzer (`FuzzCheckAll`), a self-scan test and
   docs/verification.md.
