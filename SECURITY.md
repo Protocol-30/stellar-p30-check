@@ -23,5 +23,5 @@ as normal issues.
 
 ## Supported versions
 
-Only the latest commit on the default branch is supported until the first
-tagged release.
+Fixes go into the latest release (currently v0.1.x) and the default branch.
+Older releases are not patched; upgrade to the latest release.

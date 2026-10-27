@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Added
+- Issue forms (bug, wrong or missing finding), a pull request checklist,
+  Dependabot updates for workflow actions, and docs/maintaining.md (branch
+  and tag rulesets, security settings, topics).
+
+### Changed
+- SECURITY.md: fixes go into the latest release; older releases are not patched.
+
 ## v0.1.0 - 2026-10-27
 
 First release. `p30check` is an offline, read-only scanner that flags Stellar

@@ -1,0 +1,44 @@
+name: Bug
+description: A crash, hang, wrong exit code, unreadable report, or a file read that should not happen.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Security problems (reading outside the scan root, following symlinks it
+        should not, hangs on crafted input) go to the private
+        [security advisory form](https://github.com/Protocol-30/stellar-p30-check/security/advisories/new),
+        not here. For a finding you think is wrong, use the "Wrong or missing finding" form.
+  - type: input
+    id: version
+    attributes:
+      label: p30check version
+      description: Output of `p30check version`.
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: OS and architecture
+      placeholder: linux/amd64
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Command
+      placeholder: p30check scan . --format json --fail-on high
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: A minimal directory tree that triggers it, if you can share one.
+      render: text
