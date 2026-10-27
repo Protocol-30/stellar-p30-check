@@ -7,7 +7,7 @@ Build an **offline, read-only Go CLI** for repo-level Stellar Protocol 30 compat
 
 ## Non-negotiables
 1. **Verify ecosystem facts live** using official Stellar documentation/releases and record URLs + checked dates. Do not invent SDK versions, package paths, XDR fixtures, or GitHub CI job names.
-2. **Use actual repo state**, not assumed file structures. Read `BUILD_PLAN.md`, `SOURCES.md`, the tree, `go.mod`, and existing tests before editing.
+2. **Use actual repo state**, not assumed file structures. Read `docs/plan/BUILD_PLAN.md`, `docs/evidence.md`, the tree, `go.mod`, and existing tests before editing.
 3. **Make correctness falsifiable.** Every rule needs at least one positive and one negative fixture. Differentiate identified mismatch, probable risk, and unverified suspicion.
 4. **Ship complete working increments.** No fake implementations, silent stubs, placeholders in user-facing executable paths, or "all clear" based on unsupported inference.
 5. **Respect permissions.** Never create an organization, repository, remote, deployment, publish release, or push without a configured user-authorized destination. Approval controls override any automatic-push convention.
@@ -34,5 +34,10 @@ Build an **offline, read-only Go CLI** for repo-level Stellar Protocol 30 compat
 - Phases 10–11: repo quality, docs site only if it adds value after v0.1.
 - Phases 12–13: confirm current Drips Wave eligibility before submission; keep issue tracker honest and maintain the project.
 
-## First session stop condition
-Implement only M0 and M1 from `BUILD_PLAN.md`: evidence/capabilities design, CLI skeleton, safe discovery, plain text + JSON reporter, representative tests. Stop and report before implementing broad heuristics or using external write capabilities.
+## Repository map
+- Planning snapshot: `docs/plan/BUILD_PLAN.md`, `docs/plan/BACKLOG.md` (the package's `SOURCES.md` is superseded by `docs/evidence.md`).
+- Architecture, report schema, exit codes: `docs/architecture.md`. Limitations: `docs/limitations.md`.
+- The original DripWave skill is not committed here; ask the owner for it if a process question needs it.
+
+## Where the project is
+Progress is tracked by DripWave phase in `docs/roadmap.md`. Phases 1–7 are done; Phase 8 (build and test) is in progress, with steps 8.1 (scanner core) and 8.2 (SDK version check, `P30-DEP-001`) done. Next is step 8.3 (`P30-ADDR-001`, `W` address check): implement only on facts recorded in `docs/evidence.md`, with positive and negative fixtures. Stop and report before broad heuristics or external write actions.

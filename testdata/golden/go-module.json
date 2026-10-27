@@ -1,0 +1,50 @@
+{
+  "schema_version": "1",
+  "tool_version": "0.1.0-dev",
+  "target": "testdata/fixtures/go-module",
+  "checked_at_utc": "2026-10-25T12:00:00Z",
+  "findings": [],
+  "summary": {
+    "manifest_files": 1,
+    "source_files": 2,
+    "skipped_entries": 0,
+    "rules_executed": 1,
+    "findings": 0,
+    "findings_by_severity": {
+      "high": 0,
+      "info": 0,
+      "medium": 0
+    },
+    "warnings": 1
+  },
+  "inventory": [
+    {
+      "path": "go.mod",
+      "kind": "go-mod",
+      "category": "manifest"
+    },
+    {
+      "path": "internal/run.go",
+      "kind": "source-go",
+      "category": "source"
+    },
+    {
+      "path": "main.go",
+      "kind": "source-go",
+      "category": "source"
+    }
+  ],
+  "skipped": [],
+  "warnings": [
+    {
+      "code": "rules-not-implemented",
+      "message": "not checked by this build: P30-ADDR-001, P30-XDR-001, P30-TS-001; see docs/roadmap.md"
+    }
+  ],
+  "limitations": [
+    "Static, offline analysis only: scanned code is never executed, and no network or RPC calls are made.",
+    "A finding is an indication to review, not proof of runtime breakage; no findings is not proof of Protocol 30 compatibility.",
+    "Stellar's November 3, 2026 (Testnet) and November 23, 2026 (Mainnet) dates are upgrade votes, not guaranteed activation dates.",
+    "Ignored directories, symlinks that are not followed, and files over the size limit are not inspected; see the skipped list."
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "schema_version": "1",
+  "tool_version": "0.1.0-dev",
+  "target": "testdata/fixtures/js-app",
+  "checked_at_utc": "2026-10-25T12:00:00Z",
+  "findings": [
+    {
+      "rule_id": "P30-DEP-001",
+      "severity": "medium",
+      "confidence": "high",
+      "path": "package.json",
+      "line": 5,
+      "message": "@stellar/stellar-sdk 16.4.0: decodes Protocol 30 ledgers but cannot handle W muxed-contract addresses (CAP-84)",
+      "evidence": "package.json dependencies declares \"@stellar/stellar-sdk\": \"16.4.0\"",
+      "remediation": "Upgrade to @stellar/stellar-sdk 17.3.0 or later. Stay on 16.4.x only if the app never parses, validates or displays contract addresses.",
+      "references": [
+        "https://stellar.org/blog/developers/bell-protocol-30-upgrade-guide",
+        "https://github.com/stellar/stellar-protocol/blob/master/core/cap-0088.md",
+        "https://github.com/stellar/stellar-protocol/blob/master/core/cap-0084.md",
+        "https://www.npmjs.com/package/@stellar/stellar-sdk"
+      ]
+    }
+  ],
+  "summary": {
+    "manifest_files": 1,
+    "source_files": 2,
+    "skipped_entries": 2,
+    "rules_executed": 1,
+    "findings": 1,
+    "findings_by_severity": {
+      "high": 0,
+      "info": 0,
+      "medium": 1
+    },
+    "warnings": 1
+  },
+  "inventory": [
+    {
+      "path": "package.json",
+      "kind": "package-json",
+      "category": "manifest"
+    },
+    {
+      "path": "src/index.ts",
+      "kind": "source-ts",
+      "category": "source"
+    },
+    {
+      "path": "src/view.jsx",
+      "kind": "source-jsx",
+      "category": "source"
+    }
+  ],
+  "skipped": [
+    {
+      "path": "dist",
+      "reason": "ignored directory"
+    },
+    {
+      "path": "node_modules",
+      "reason": "ignored directory"
+    }
+  ],
+  "warnings": [
+    {
+      "code": "rules-not-implemented",
+      "message": "not checked by this build: P30-ADDR-001, P30-XDR-001, P30-TS-001; see docs/roadmap.md"
+    }
+  ],
+  "limitations": [
+    "Static, offline analysis only: scanned code is never executed, and no network or RPC calls are made.",
+    "A finding is an indication to review, not proof of runtime breakage; no findings is not proof of Protocol 30 compatibility.",
+    "Stellar's November 3, 2026 (Testnet) and November 23, 2026 (Mainnet) dates are upgrade votes, not guaranteed activation dates.",
+    "Ignored directories, symlinks that are not followed, and files over the size limit are not inspected; see the skipped list."
+  ]
+}

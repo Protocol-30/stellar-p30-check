@@ -2,9 +2,9 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
-	"errors"
-	"io"
+	"flag"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,195 +12,200 @@ import (
 	"time"
 
 	"github.com/Protocol-30/stellar-p30-check/internal/report"
-	"github.com/Protocol-30/stellar-p30-check/internal/walker"
+	"github.com/Protocol-30/stellar-p30-check/internal/rules"
 )
 
-var fixedNow = time.Date(2026, 10, 25, 17, 0, 0, 0, time.UTC)
+var update = flag.Bool("update", false, "rewrite golden files in testdata/golden")
 
-func TestFixtureReports(t *testing.T) {
-	for _, tc := range []struct {
-		name     string
-		manifest string
-		kind     string
-	}{
-		{"m1-go", "go.mod", "go_module"},
-		{"m1-js", "package.json", "js_manifest"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			target := filepath.Join("..", "..", "testdata", tc.name)
-			var first []byte
-			for i := 0; i < 2; i++ {
-				var stdout, stderr bytes.Buffer
-				code := Run([]string{"scan", target, "--format", "json", "--fail-on", "high"}, &stdout, &stderr, Options{Now: func() time.Time { return fixedNow }})
-				if code != 0 || stderr.Len() != 0 {
-					t.Fatalf("exit=%d stderr=%s stdout=%s", code, &stderr, &stdout)
-				}
-				var got report.ScanReport
-				if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
-					t.Fatal(err)
-				}
-				if got.SchemaVersion != report.SchemaVersion || got.CheckedAtUTC != fixedNow.Format(time.RFC3339Nano) || !got.Coverage.Complete || got.Coverage.RulesImplemented != 4 {
-					t.Fatalf("incorrect report: %+v", got)
-				}
-				if got.Findings == nil || len(got.Findings) != 0 || len(got.Inventory) != 2 || len(got.Limitations) == 0 {
-					t.Fatalf("incorrect inventory/findings/limitations: %+v", got)
-				}
-				found := false
-				for _, f := range got.Inventory {
-					if f.Path == tc.manifest && f.Kind == tc.kind {
-						found = true
-					}
-				}
-				if !found {
-					t.Fatalf("missing manifest %s: %+v", tc.manifest, got.Inventory)
-				}
-				if i == 0 {
-					first = bytes.Clone(stdout.Bytes())
-				} else if !bytes.Equal(first, stdout.Bytes()) {
-					t.Fatal("identical scan with fixed clock produced different JSON")
-				}
-			}
-		})
+const fixtures = "../../testdata/fixtures"
+
+var fixedNow = func() time.Time { return time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC) }
+
+type injected []report.Finding
+
+func (injected) ID() string { return "P30-TEST-001" }
+func (f injected) Check(context.Context, rules.Input) (rules.Output, error) {
+	return rules.Output{Findings: f}, nil
+}
+
+func run(t *testing.T, rs []rules.Rule, args ...string) (code int, stdout, stderr string) {
+	t.Helper()
+	var out, errb bytes.Buffer
+	code = Run(context.Background(), args, Env{Stdout: &out, Stderr: &errb, Now: fixedNow, Rules: rs})
+	return code, out.String(), errb.String()
+}
+
+func finding(sev report.Severity, conf report.Confidence) report.Finding {
+	return report.Finding{
+		RuleID: "P30-TEST-001", Severity: sev, Confidence: conf,
+		Path: "go.mod", Line: 1, Message: "injected for exit-code tests",
 	}
 }
 
-func TestScanErrorsProduceStructuredIncompleteReports(t *testing.T) {
-	file := filepath.Join(t.TempDir(), "file.go")
-	if err := os.WriteFile(file, []byte("package example"), 0600); err != nil {
+func TestExitCodePolicy(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module x\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	for _, target := range []string{filepath.Join(t.TempDir(), "missing"), file, "invalid\x00path"} {
-		t.Run(strconvName(target), func(t *testing.T) {
-			var stdout, stderr bytes.Buffer
-			if code := Run([]string{"scan", target, "--format=json"}, &stdout, &stderr, Options{}); code != 2 {
-				t.Fatalf("exit=%d", code)
-			}
-			var got report.ScanReport
-			if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
-				t.Fatalf("invalid JSON: %v; %s", err, &stdout)
-			}
-			if got.Coverage.Complete || got.Error == "" || stderr.Len() == 0 {
-				t.Fatalf("failure not reported: %+v stderr=%s", got, &stderr)
+	cases := []struct {
+		name     string
+		findings []report.Finding
+		failOn   string
+		want     int
+	}{
+		{"no findings, gate off", nil, "none", ExitOK},
+		{"no findings, gate on", nil, "high", ExitOK},
+		{"high/high, gate off", []report.Finding{finding(report.SeverityHigh, report.ConfidenceHigh)}, "none", ExitOK},
+		{"high/high, gate on", []report.Finding{finding(report.SeverityHigh, report.ConfidenceHigh)}, "high", ExitGated},
+		{"high/medium, gate on", []report.Finding{finding(report.SeverityHigh, report.ConfidenceMedium)}, "high", ExitOK},
+		{"medium/high, gate on", []report.Finding{finding(report.SeverityMedium, report.ConfidenceHigh)}, "high", ExitOK},
+		{"info/low, gate on", []report.Finding{finding(report.SeverityInfo, report.ConfidenceLow)}, "high", ExitOK},
+		{"mixed, gate on", []report.Finding{
+			finding(report.SeverityMedium, report.ConfidenceHigh),
+			finding(report.SeverityHigh, report.ConfidenceHigh),
+		}, "high", ExitGated},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			code, _, stderr := run(t, []rules.Rule{injected(c.findings)}, "scan", root, "--fail-on", c.failOn)
+			if code != c.want {
+				t.Errorf("exit = %d, want %d (stderr %q)", code, c.want, stderr)
 			}
 		})
 	}
 }
 
-func strconvName(path string) string { return strings.ReplaceAll(filepath.Base(path), "\x00", "NUL") }
-
-func TestUsageErrorsDoNotScan(t *testing.T) {
-	tests := [][]string{
-		{}, {"unknown"}, {"scan"}, {"scan", ""}, {"scan", ".", "extra"},
-		{"scan", ".", "--format", "csv"}, {"scan", ".", "--fail-on", "medium"},
-		{"scan", ".", "--unknown"}, {"scan", ".", "--format"},
-		{"scan", ".", "--max-files", "0"}, {"scan", ".", "--max-entries", "-1"},
-		{"scan", ".", "--max-depth=0"}, {"scan", ".", "--max-file-bytes=0"},
-		{"scan", ".", "--max-total-bytes=-1"}, {"scan", ".", "--max-files=abc"},
-		{"version", "extra"}, {"help", "extra"}, {"scan", ".", "--help=false"},
+func TestDefaultGateIsOff(t *testing.T) {
+	code, _, _ := run(t, []rules.Rule{injected{finding(report.SeverityHigh, report.ConfidenceHigh)}}, "scan", t.TempDir())
+	if code != ExitOK {
+		t.Errorf("exit = %d, want 0 without --fail-on", code)
 	}
-	for _, args := range tests {
-		t.Run(strings.Join(args, "_"), func(t *testing.T) {
-			var stdout, stderr bytes.Buffer
-			opts := Options{Scan: func(string, walker.Limits) (walker.Result, error) {
-				t.Fatal("unexpected scan on invalid args")
-				return walker.Result{}, nil
-			}}
-			if code := Run(args, &stdout, &stderr, opts); code != 2 || stdout.Len() != 0 || !strings.Contains(stderr.String(), "Usage:") {
-				t.Fatalf("exit=%d stdout=%s stderr=%s", code, &stdout, &stderr)
+}
+
+func TestUsageErrors(t *testing.T) {
+	dir := t.TempDir()
+	cases := map[string][]string{
+		"no args":           {},
+		"unknown command":   {"audit", dir},
+		"no path":           {"scan"},
+		"two paths":         {"scan", dir, dir},
+		"bad format":        {"scan", dir, "--format", "sarif"},
+		"bad fail-on":       {"scan", dir, "--fail-on", "medium"},
+		"unknown flag":      {"scan", dir, "--deep"},
+		"missing flag arg":  {"scan", dir, "--format"},
+		"zero max bytes":    {"scan", dir, "--max-file-bytes", "0"},
+		"negative max":      {"scan", dir, "--max-files", "-1"},
+		"non-numeric limit": {"scan", dir, "--max-files", "lots"},
+	}
+	for name, args := range cases {
+		t.Run(name, func(t *testing.T) {
+			code, stdout, stderr := run(t, nil, args...)
+			if code != ExitError {
+				t.Errorf("exit = %d, want %d", code, ExitError)
+			}
+			if stdout != "" {
+				t.Errorf("usage error wrote to stdout: %q", stdout)
+			}
+			if stderr == "" {
+				t.Error("usage error printed nothing to stderr")
 			}
 		})
+	}
+}
+
+func TestScanFailuresExit2(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "file.go")
+	if err := os.WriteFile(file, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for name, path := range map[string]string{
+		"missing path": filepath.Join(t.TempDir(), "nope"),
+		"file path":    file,
+		"nul byte":     "bad\x00path",
+	} {
+		t.Run(name, func(t *testing.T) {
+			code, stdout, stderr := run(t, nil, "scan", path)
+			if code != ExitError || stdout != "" || !strings.Contains(stderr, "scan failed") {
+				t.Errorf("exit=%d stdout=%q stderr=%q", code, stdout, stderr)
+			}
+		})
+	}
+
+	dir := t.TempDir()
+	for _, n := range []string{"a.go", "b.go"} {
+		if err := os.WriteFile(filepath.Join(dir, n), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	code, stdout, stderr := run(t, nil, "scan", dir, "--max-files", "1")
+	if code != ExitError || stdout != "" || !strings.Contains(stderr, "no partial report") {
+		t.Errorf("limit: exit=%d stdout=%q stderr=%q", code, stdout, stderr)
 	}
 }
 
 func TestHelpAndVersion(t *testing.T) {
-	for _, args := range [][]string{{"--help"}, {"help"}, {"scan", "--help"}, {"scan", "missing", "-h"}, {"version"}, {"--version"}} {
-		var stdout, stderr bytes.Buffer
-		if code := Run(args, &stdout, &stderr, Options{Version: "test"}); code != 0 || stdout.Len() == 0 || stderr.Len() != 0 {
-			t.Fatalf("%v exit=%d stdout=%s stderr=%s", args, code, &stdout, &stderr)
+	for _, args := range [][]string{{"help"}, {"--help"}, {"-h"}, {"scan", "--help"}} {
+		code, stdout, _ := run(t, nil, args...)
+		if code != ExitOK || !strings.Contains(stdout, "p30check scan <path>") {
+			t.Errorf("%v: exit=%d stdout=%q", args, code, stdout)
 		}
+	}
+	code, stdout, _ := run(t, nil, "version")
+	if code != ExitOK || stdout != "p30check "+Version+" (report schema 1)\n" {
+		t.Errorf("version: exit=%d stdout=%q", code, stdout)
 	}
 }
 
-func TestInterspersedFlagsAndHyphenPath(t *testing.T) {
-	var captured walker.Limits
-	var target string
-	opts := Options{Scan: func(path string, limits walker.Limits) (walker.Result, error) {
-		target, captured = path, limits
-		return walker.Result{Complete: true}, nil
-	}}
-	var stdout, stderr bytes.Buffer
-	args := []string{"scan", "--max-files=3", "--format", "json", "--max-file-bytes", "7", "--max-total-bytes=9", "--max-entries=4", "--max-depth=2", "--", "-target"}
-	if code := Run(args, &stdout, &stderr, opts); code != 0 {
-		t.Fatalf("exit=%d stderr=%s", code, &stderr)
+func TestFlagsBeforeOrAfterPath(t *testing.T) {
+	dir := filepath.Join(fixtures, "go-module")
+	_, after, _ := run(t, nil, "scan", dir, "--format", "json")
+	_, before, _ := run(t, nil, "scan", "--format=json", dir)
+	if after != before || !json.Valid([]byte(after)) {
+		t.Errorf("flag position changed output:\n%s\n---\n%s", after, before)
 	}
-	if filepath.Base(target) != "-target" || captured.MaxFiles != 3 || captured.MaxFileBytes != 7 || captured.MaxTotalBytes != 9 || captured.MaxEntries != 4 || captured.MaxDepth != 2 {
-		t.Fatalf("incorrect args: target=%s limits=%+v", target, captured)
+	code, _, stderr := run(t, nil, "scan", "--", "--format")
+	if code != ExitError || !strings.Contains(stderr, "scan failed") {
+		t.Errorf("'--' should make the next argument a path: exit=%d stderr=%q", code, stderr)
 	}
 }
 
-func TestPartialScanAndControlCharacters(t *testing.T) {
-	opts := Options{Scan: func(string, walker.Limits) (walker.Result, error) {
-		return walker.Result{Files: []walker.File{{Path: "prior.go", Kind: "go_source", Size: 1}}, EntriesVisited: 2, BytesRead: 1}, errors.New("read evil\x1b[2J\nforged: failure")
-	}}
-	for _, format := range []string{"text", "json"} {
-		var stdout, stderr bytes.Buffer
-		if code := Run([]string{"scan", ".", "--format", format}, &stdout, &stderr, opts); code != 2 {
-			t.Fatalf("exit=%d", code)
+// TestGoldenReports pins the full text and JSON output for the discovery
+// fixtures. Run "go test ./internal/cli -update" after an intended change.
+func TestGoldenReports(t *testing.T) {
+	for _, fixture := range []string{"go-module", "js-app"} {
+		for _, format := range []string{"text", "json"} {
+			t.Run(fixture+"/"+format, func(t *testing.T) {
+				target := "testdata/fixtures/" + fixture
+				// Run from the repository root so the echoed target is
+				// relative and identical on every machine.
+				t.Chdir("../..")
+				code, stdout, stderr := run(t, nil, "scan", target, "--format", format)
+				if code != ExitOK {
+					t.Fatalf("exit=%d stderr=%q", code, stderr)
+				}
+				_, again, _ := run(t, nil, "scan", target, "--format", format)
+				if stdout != again {
+					t.Fatal("two scans of the same fixture differ")
+				}
+
+				ext := map[string]string{"text": ".txt", "json": ".json"}[format]
+				golden := filepath.Join("testdata", "golden", fixture+ext)
+				if *update {
+					if err := os.MkdirAll(filepath.Dir(golden), 0o755); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(golden, []byte(stdout), 0o644); err != nil {
+						t.Fatal(err)
+					}
+				}
+				want, err := os.ReadFile(golden)
+				if err != nil {
+					t.Fatalf("read golden (run with -update to create): %v", err)
+				}
+				if stdout != string(want) {
+					t.Errorf("output differs from %s; rerun with -update if intended\n--- got\n%s", golden, stdout)
+				}
+			})
 		}
-		if bytes.Contains(stdout.Bytes(), []byte{0x1b}) || bytes.Contains(stderr.Bytes(), []byte{0x1b}) || strings.Contains(stderr.String(), "\nforged:") {
-			t.Fatal("unescaped terminal control or forged error")
-		}
-		if format == "json" {
-			var r report.ScanReport
-			if err := json.Unmarshal(stdout.Bytes(), &r); err != nil {
-				t.Fatal(err)
-			}
-			if r.Coverage.Complete || len(r.Inventory) != 1 || r.Coverage.FilesScanned != 1 || r.Error == "" {
-				t.Fatalf("partial result lost: %+v", r)
-			}
-		}
-	}
-}
-
-func TestLimitFailure(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "sample.go"), []byte("package sample"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	var stdout, stderr bytes.Buffer
-	if code := Run([]string{"scan", dir, "--format=json", "--max-file-bytes=1"}, &stdout, &stderr, Options{}); code != 2 {
-		t.Fatalf("exit=%d stdout=%s stderr=%s", code, &stdout, &stderr)
-	}
-	var r report.ScanReport
-	if err := json.Unmarshal(stdout.Bytes(), &r); err != nil {
-		t.Fatal(err)
-	}
-	if r.Coverage.Complete || r.Error == "" {
-		t.Fatalf("limit failure hidden: %+v", r)
-	}
-}
-
-type brokenWriter struct{}
-
-func (brokenWriter) Write([]byte) (int, error) { return 0, io.ErrClosedPipe }
-
-func TestOutputFailures(t *testing.T) {
-	for _, args := range [][]string{{"--help"}, {"version"}, {"scan", "--help"}, {"scan", "."}} {
-		var stderr bytes.Buffer
-		opts := Options{Scan: func(string, walker.Limits) (walker.Result, error) { return walker.Result{Complete: true}, nil }}
-		if code := Run(args, brokenWriter{}, &stderr, opts); code != 2 || !strings.Contains(stderr.String(), "output failed") {
-			t.Fatalf("%v exit=%d stderr=%s", args, code, &stderr)
-		}
-	}
-}
-
-func TestIncompleteWithoutErrorStillFails(t *testing.T) {
-	var stdout, stderr bytes.Buffer
-	opts := Options{Scan: func(string, walker.Limits) (walker.Result, error) { return walker.Result{}, nil }}
-	if code := Run([]string{"scan", ".", "--format=json"}, &stdout, &stderr, opts); code != 2 {
-		t.Fatalf("exit=%d", code)
-	}
-	if !strings.Contains(stdout.String(), "incomplete scan") {
-		t.Fatal("missing explicit failure")
 	}
 }

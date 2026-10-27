@@ -1,7 +1,0 @@
-{
-  "name": "p30check-m3-js-negative-contexts-fixture",
-  "private": true,
-  "dependencies": {
-    "@stellar/stellar-sdk": "17.3.0"
-  }
-}

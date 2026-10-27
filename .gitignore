@@ -1,6 +1,2 @@
 /p30check
-/bin/
-/.cache/
-*.test
-coverage.out
-.DS_Store
+/p30check.exe

@@ -1,0 +1,7 @@
+{
+  "name": "wallet",
+  "private": true,
+  "dependencies": {
+    "@stellar/stellar-sdk": "^16.0.0"
+  }
+}

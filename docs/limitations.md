@@ -1,51 +1,42 @@
 # Limitations
 
-## What M4 establishes
+## What this build does
 
-M3 adds a narrow local W-address guard/helper rule to dependency parsing/capabilities. It does not establish application runtime behavior. Empty findings, complete discovery, and exit 0 are not Protocol 30 compatibility evidence. `rules_implemented` is 4; ledger analysis covers only the direct decoder/typed timestamp subset in [rules](rules.md). General dataflow and target runtime verification remain unimplemented.
+- Discovers Go and JavaScript/TypeScript manifests, lockfiles and sources
+  under one directory and reports them, with every skipped entry and why.
+- Produces a deterministic text or JSON report and a CI-friendly exit code.
+- Flags official Stellar SDK versions without Protocol 30 support
+  (P30-DEP-001; see [rules.md](rules.md)).
 
-`coverage.complete` means processing completed within the chosen filesystem scope. Deliberate exclusions and unsupported-but-valid formats may coexist with completeness. Inspect `coverage.skipped`, `dependency_warnings`, each dependency's `effective`/`uncertainty`, and `limitations`.
+## What this build does not do
 
-## Dependency boundaries
+- **Only the SDK version check (P30-DEP-001) exists.** It does not yet check
+  your own `W` (CAP-84 muxed contract) address handling or CAP-88
+  ledger-header decoding code. Every report says so
+  (`rules-not-implemented` warning). An empty findings list from this build
+  means only that no outdated official SDK version was found.
+- `yarn.lock` and `pnpm-lock.yaml` are not read; ranges in `package.json`
+  are judged at their lowest allowed version, with low confidence.
+- It never runs, builds or imports the scanned code, and makes no network or
+  RPC calls. It cannot observe runtime behaviour.
 
-- **Go:** `go.mod` and `go.work` are parsed statically, including available requirement/replacement/workspace evidence. Workspace membership/replacements are resolved lexically from included modules; escaping or unavailable use paths, conflicting memberships, forks, local replacements, and excluded requirements remain uncertain. Requirements and replacements do not prove effective MVS selection; records remain ineffective. No `go list`, build, module fetch, or external replacement traversal is performed. `go.sum` and `go.work.sum` are checksum history, not selected-version lists or compatibility finding sources.
-- **JS formats:** supported cases are package manifests, npm lock versions 1/2/3, Yarn Classic v1, and a partial pnpm v9 subset. Only direct manifest dependency/dev/optional/peer groups are inventoried. npm v1 resolves same-directory root selections; v2/v3 use a matching importer and nearest supported node_modules record. Yarn Classic requires matching selectors and does not prove nested-workspace selection; pnpm support uses matching importer/package records. Ancestor npm/pnpm lock use also requires current supported workspace-membership evidence, not merely a stale importer in the lock. This is not a complete package-manager implementation, installation graph, or runtime loader simulation. Unsupported valid lock versions/syntax produce warnings. Malformed or safety-rejected recognized inputs make the scan incomplete and exit 2. JSON duplicate keys/nesting beyond 64 and YAML duplicate keys, aliases, complex keys, or nesting beyond 64 are rejected rather than silently interpreted.
-- **JS effective selection:** a lock-observed version alone is insufficient. The supported declaration/version/identity relationship must be compatible, with an exact lock version and matching expected HTTPS official-registry tarball URL in metadata (`registry.npmjs.org` or `registry.yarnpkg.com`, no user info/query). No artifact is fetched or installation/integrity verified. npm registry URLs can use a configured registry at install time; the scanner intentionally does not read credential-bearing npmrc files. `effective` describes supported nominal metadata agreement, never independent proof of actual routing, artifact origin, or installation. Exact full versions and full stable caret/tilde constraints are supported; complex ranges, tags, and prerelease ranges remain uncertain. Integrity-only pnpm records can describe a version but lack the expected registry URL metadata. Aliases, forks, local/file/git/workspace dependency sources, conflicting declarations, patches, and overrides/resolutions stay uncertain.
-- **JS workspace/manager configuration:** ancestor npm locks require current root package.json workspaces membership (an array or packages array); pnpm requires current pnpm-workspace.yaml packages membership. Supported patterns are exact canonical root-relative paths and ordinary `*` globs. Negative/globstar, `?`, bracket/brace, backslash, parent-traversal, noncanonical, or otherwise complex patterns make membership unknown; unsupported patterns are not silently ignored. Yarn locks are same-directory only. pnpm patchedDependencies in package settings, workspace config, or locks, and peer/patch-qualified versions, stay uncertain. If current same-scope or ancestor packageManager metadata is present, it must name the matching supported npm/pnpm/Yarn family with an exact manager version; Yarn Classic requires Yarn major 1. For explicit manager metadata, supported npm v1 tree evidence needs npm 5+, npm v2/v3 package-record evidence needs npm 7+, pnpm v9 locks need pnpm 9+, and Yarn Classic needs Yarn 1. This describes the supported evidence reader, not a complete package-manager compatibility claim. Unknown/tag-based manager declarations or lock-family/version mismatches remain uncertain. Multiple applicable same-scope/ancestor locks are ambiguous, even across package-manager families; the scanner does not silently choose a fallback. These cases stay explicit rather than being upgraded to supported nominal lock selection.
-- **Capability matrix:** only exact canonical `@stellar/stellar-sdk` versions 16.3.1, 16.4.0, 17.3.0 and `github.com/stellar/go-stellar-sdk` v0.8.0 are verified. Unknown/future/prerelease versions receive no semver extrapolation. Capabilities annotate an observed version, not necessarily the target's effective dependency. Legacy identities/aliases and unverified families do not inherit the canonical capability row.
-- **Findings:** P30-DEP-001 requires uncertainty-free supported nominal selection of a canonical official release plus a known missing capability. Its capability claim is conditional on the lock metadata identity, not a verified installed artifact. It emits medium severity/high confidence, because no application-role proof exists. Go manifest minimums and checksum entries cannot produce this finding. `--fail-on high` therefore does not gate M2 dependency warnings.
+## Limits that will remain once rules exist
 
-JS SDK 16.4.0 can decode muxed-contract XDR while its higher-level W helpers reject it. One blanket CAP-84-support boolean would hide this distinction. Modern observed SDK support also says nothing about custom address/XDR code.
+- Static matches are indications. A high-confidence finding is strong
+  evidence to review, not proof of breakage; no findings is not proof of
+  compatibility.
+- Only Go and JS/TS are in scope. Python, Rust, Java and other SDKs are not
+  inspected.
+- Code in ignored directories (`vendor`, `node_modules`, `dist`, ...),
+  symlinked directories, and files over the size limit (16 MiB by default)
+  is not inspected. Vendored or bundled copies of an old SDK can therefore be missed.
+- Generated files are recognised only by name (`*.min.js`, `*.d.ts`).
+  Generated Go files with a `Code generated ... DO NOT EDIT.` header are
+  still listed as sources.
+- Protocol dates in reports (Testnet vote 2026-11-03, Mainnet vote
+  2026-11-23, both 17:00 UTC) are proposed upgrade votes, not activation
+  guarantees.
 
-## Address-analysis boundaries
+## Known false-positive / false-negative cases
 
-- **Local proof only:** a supported guard must reject W immediately before a specific imported W-only helper consumes the same simple parameter. Generic regex/prefix validators alone are ignored. Aliased/interprocedural values, unsupported expressions, reassignment, shadowing, ambiguous bindings, nested/alternate flow, and side-effecting conditions suppress proof rather than being guessed.
-- **JS/TS context:** high/high requires supported local syntax/import/flow plus uncertainty-free nominal SDK 17.3.0 W support from the nearest current package boundary. Correct source imports alone are not enough, and metadata is not installed-artifact proof. Unresolved selection lowers W-only findings to medium/medium.
-- **Go context:** supported direct strkey W-only helpers can produce medium/medium guidance, but Go selected versions remain unresolved under the dependency model. No Go high gate is inferred from a declared minimum. Dot/fork imports, methods/generic functions, closures, multi-step flows, and unsupported constructs are not general analysis targets.
-- **SAC destination policy:** imported TransactionBuilder instance calls use the first positional destination in addSacTransferOperation. A narrow supported guard can produce medium/low review guidance only. An account-only business policy may be deliberate; do not automatically expand it to W.
-- **Required negative contexts:** classic account G/M inputs, C-only decoders, Go MuxedContract.SetContractID, AddressObject inputs, and contract storage keys do not become high findings merely for rejecting W. Supported W-accepting guards remain negative. Comments/string text, type-only or shadowed imports, mutation, and bypass paths must not be promoted to executable proof.
-- **Parsing and coverage:** JS/TS/JSX/TSX parsing is bounded to 2 seconds per file, source AST traversal to 200000 nodes per file. Invalid/unsupported source syntax adds a per-file limitation without a source finding; resource exhaustion is an incomplete error/exit 2. No full target compilation or type checking is performed. Unsupported patterns can be false negatives even when syntax parsed successfully; an empty source finding set is not an all-clear.
-
-Normal builds require CGO_ENABLED=1 and a C compiler for the pinned Tree-sitter parsers. There is no pure-Go build that silently disables source analysis. Source notices use `limitations`, not `dependency_warnings`. Address analysis does not run from incomplete filesystem/dependency-metadata inventory. The tree is not a stable snapshot and cross-file dynamic behavior is not proven.
-
-## File scope
-
-Recognized manifests include `go.mod`, `go.work`, `go.sum`, `go.work.sum`, `package.json`, `package-lock.json`, `npm-shrinkwrap.json`, `yarn.lock`, `pnpm-lock.yaml`, and `pnpm-workspace.yaml`. Recognized sources have `.go`, `.js`, `.jsx`, `.ts`, or `.tsx` extensions; source contents are inventoried and considered only for the supported local address subset, not general address or raw-XDR usage analysis. Files are data, never instructions for target commands.
-
-Excluded directory basenames are `.git`, `node_modules`, `vendor`, `dist`, `build`, `.next`, `coverage`, and `.cache`. Unrelated extensions are outside scope. Child symlinks and special files are skipped; the root cannot itself be a symlink, and there is no symlink-following option.
-
-`*.min.js` is excluded by name. A standard Go generated marker before the package declaration is detected after a bounded read. Selected source files with NUL bytes are excluded as binary. Recognized dependency metadata with NUL bytes instead makes the scan incomplete with a contextual error and exit 2; this prevents silently losing dependency evidence. Detection is limited; not every generated/binary file is recognizable. Such candidates consume read budgets; oversized generated Go files can fail before classification.
-
-## Resource and filesystem boundaries
-
-Defaults are 2 MiB per file, 64 MiB bytes read, 10000 relevant regular-file candidates, 100000 child entries, and directory depth 64 (root 0). Entry counts include excluded-directory entries and unrelated extensions, not excluded-directory contents. Unexpected exhaustion or filesystem errors produce incomplete partial reports and exit 2.
-
-The scan is not an atomic snapshot. Use a quiescent isolated checkout. Rooted operations and special-file protections do not provide a consistent point-in-time inventory against concurrent modifications. The prepared validation platform is Linux amd64; do not infer every OS/filesystem was tested.
-
-## Remaining protocol analysis
-
-W rejection remains correct in account-only G/M fields, AddressObject inputs, and contract storage keys. This increment does not certify those whole domains; it keeps them outside the narrow contradiction proof. M4 correlates direct decoder use with scoped metadata; historical inputs, unresolved selections and unknown versions remain review guidance. No captured post-upgrade ledger fixtures exist here; no synthetic payload is claimed as official network data.
-
-The supplied planning vote dates could not be revalidated from the cited Stellar blogs in this environment. See [evidence](evidence.md); votes are not unconditional activation dates.
-
-M4 timing coverage is Go-only. JS/TS time comparisons, Go local-variable decoder setup, custom decoders and restrictive XDR union switches are not analyzed. Known modern *observations* can suppress an XDR warning but never certify the selected runtime; dependency uncertainty remains visible. Both source analyzers may parse a file separately; the two-second JS budget is per analyzer/file.
+Listed per rule in [rules.md](rules.md).

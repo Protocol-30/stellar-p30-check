@@ -1,12 +1,11 @@
-// Package walker discovers relevant regular files without executing target code.
+// Package walker discovers files relevant to Protocol 30 checks inside a
+// single root directory. It only stats entries; it never reads, executes or
+// uploads file contents.
 package walker
 
 import (
-	"bytes"
+	"errors"
 	"fmt"
-	goscanner "go/scanner"
-	"go/token"
-	"io"
 	"io/fs"
 	"os"
 	"path"
@@ -15,328 +14,305 @@ import (
 	"strings"
 )
 
-// Limits bound discovery work and retained source contents. All values must be
-// positive. MaxFiles counts selected regular-file candidates, including ones
-// subsequently recognized as binary or generated. Root has directory depth 0.
-type Limits struct {
-	MaxFileBytes  int64
-	MaxTotalBytes int64
-	MaxFiles      int
-	MaxEntries    int
-	MaxDepth      int
+// Defaults for the traversal ceilings.
+const (
+	DefaultMaxFileBytes = 16 << 20 // 16 MiB; npm lockfiles in large repos exceed a few MiB
+	DefaultMaxFiles     = 20000
+	DefaultMaxEntries   = 500000
+	DefaultMaxDepth     = 64
+)
+
+// DefaultIgnoredDirs are directory names never descended into. They hold
+// VCS metadata, installed dependencies or build output rather than the
+// project's own code.
+var DefaultIgnoredDirs = []string{
+	".git", ".hg", ".svn",
+	"node_modules", "bower_components", "vendor",
+	"dist", "build", "out", "coverage",
+	".next", ".nuxt", ".turbo", ".cache",
 }
 
-func DefaultLimits() Limits {
-	return Limits{
-		MaxFileBytes: 2 * 1024 * 1024, MaxTotalBytes: 64 * 1024 * 1024,
-		MaxFiles: 10000, MaxEntries: 100000, MaxDepth: 64,
-	}
-}
+// Category groups file kinds.
+type Category string
 
-// File contains a root-relative slash path and safely read contents. Data is
-// intended for future rule analysis, not inclusion in public reports.
+const (
+	CategoryManifest Category = "manifest"
+	CategorySource   Category = "source"
+)
+
+// File is a relevant file found under the root.
 type File struct {
-	Path string
-	Kind string
-	Size int64
-	Data []byte
+	Path     string // slash-separated, relative to the root
+	Kind     string
+	Category Category
+	Size     int64
 }
 
+// Skip records an entry the walker deliberately did not inspect.
 type Skip struct {
 	Path   string
 	Reason string
 }
 
-// Complete describes discovery of the selected regular-file scope, not protocol
-// compatibility or coverage of intentionally excluded directories and files.
+// Result is the outcome of a walk.
 type Result struct {
-	Files          []File
-	Skipped        []Skip
-	EntriesVisited int
-	BytesRead      int64
-	Complete       bool
+	Root    string // absolute, symlink-resolved root
+	Files   []File
+	Skipped []Skip
 }
 
-var ignoredDirectories = map[string]bool{
-	".git": true, "node_modules": true, "vendor": true, "dist": true,
-	"build": true, ".next": true, "coverage": true, ".cache": true,
+// Options bounds a walk. Zero values select the defaults.
+type Options struct {
+	MaxFileBytes   int64
+	MaxFiles       int
+	MaxEntries     int
+	MaxDepth       int
+	IgnoredDirs    []string // nil selects DefaultIgnoredDirs
+	FollowSymlinks bool     // include symlinked files whose target stays inside the root
+
+	// readDir and lstat are swapped out by tests to inject I/O errors.
+	readDir func(string) ([]os.DirEntry, error)
+	lstat   func(string) (os.FileInfo, error)
 }
 
-// rootFS provides a small test seam for deterministic I/O errors. Production
-// operations always use an os.Root; scanner targets are never executed.
-type rootFS interface {
-	Lstat(string) (fs.FileInfo, error)
-	OpenFile(string, int, fs.FileMode) (*os.File, error)
+// ErrLimit is wrapped by errors returned when a traversal ceiling is hit.
+// Partial results are not returned in that case, so a truncated walk can
+// never be mistaken for a complete one.
+var ErrLimit = errors.New("traversal limit exceeded")
+
+var manifestKinds = map[string]string{
+	"go.mod":              "go-mod",
+	"go.sum":              "go-sum",
+	"go.work":             "go-work",
+	"package.json":        "package-json",
+	"package-lock.json":   "npm-lockfile",
+	"npm-shrinkwrap.json": "npm-lockfile",
+	"yarn.lock":           "yarn-lockfile",
+	"pnpm-lock.yaml":      "pnpm-lockfile",
 }
 
-type scanner struct {
-	root           rootFS
-	limits         Limits
-	result         Result
-	candidateFiles int
+var sourceKinds = map[string]string{
+	".go":  "source-go",
+	".js":  "source-js",
+	".jsx": "source-jsx",
+	".ts":  "source-ts",
+	".tsx": "source-tsx",
 }
 
-// Scan reads a directory tree under path. Static symlinks and special files are
-// excluded. Unexpected I/O failures or exceeded limits return partial results
-// with Complete=false. The underlying os.Root prevents symlink traversal outside
-// the opened root; concurrent target mutation does not yield snapshot semantics.
-func Scan(target string, limits Limits) (Result, error) {
-	if err := validateLimits(limits); err != nil {
-		return emptyResult(), err
+// Classify returns the kind and category of a file name, or ok=false when
+// the file is not relevant. Minified bundles and TypeScript declaration
+// files are treated as generated and not classified as sources.
+func Classify(name string) (kind string, cat Category, ok bool) {
+	if k, found := manifestKinds[name]; found {
+		return k, CategoryManifest, true
 	}
-	if target == "" {
-		return emptyResult(), fmt.Errorf("scan root must not be empty")
+	lower := strings.ToLower(name)
+	if strings.HasSuffix(lower, ".min.js") || strings.HasSuffix(lower, ".d.ts") {
+		return "", "", false
 	}
-	// A trailing slash or /. would otherwise make Lstat follow a final symlink.
-	target = filepath.Clean(target)
-	info, err := os.Lstat(target)
+	if k, found := sourceKinds[path.Ext(lower)]; found {
+		return k, CategorySource, true
+	}
+	return "", "", false
+}
+
+// Walk discovers relevant files below root. Results are sorted by path.
+func Walk(root string, opts Options) (Result, error) {
+	opts = withDefaults(opts)
+
+	if root == "" {
+		return Result{}, errors.New("scan path is empty")
+	}
+	abs, err := filepath.Abs(root)
 	if err != nil {
-		return emptyResult(), fmt.Errorf("inspect scan root %q: %w", target, err)
+		return Result{}, fmt.Errorf("resolve scan path %q: %w", root, err)
 	}
-	if info.Mode()&os.ModeSymlink != 0 {
-		return emptyResult(), fmt.Errorf("scan root %q is a symbolic link", target)
+	// The root itself may be a symlink the user chose deliberately; resolve
+	// it once and bound everything below to the resolved directory.
+	resolved, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		return Result{}, fmt.Errorf("resolve scan path %q: %w", root, err)
+	}
+	info, err := os.Stat(resolved)
+	if err != nil {
+		return Result{}, fmt.Errorf("stat scan path %q: %w", root, err)
 	}
 	if !info.IsDir() {
-		return emptyResult(), fmt.Errorf("scan root %q is not a directory", target)
+		return Result{}, fmt.Errorf("scan path %q is not a directory", root)
 	}
-	root, err := os.OpenRoot(target)
-	if err != nil {
-		return emptyResult(), fmt.Errorf("open scan root %q: %w", target, err)
+
+	w := &walk{opts: opts, root: resolved, ignored: map[string]bool{}}
+	for _, d := range opts.IgnoredDirs {
+		w.ignored[d] = true
 	}
-	defer root.Close()
-	opened, err := root.Lstat(".")
-	if err != nil {
-		return emptyResult(), fmt.Errorf("inspect opened scan root: %w", err)
+	if err := w.dir(resolved, "", 0); err != nil {
+		return Result{}, err
 	}
-	if !os.SameFile(info, opened) {
-		return emptyResult(), fmt.Errorf("scan root changed during discovery")
-	}
-	return scanRoot(root, limits)
+	// Depth-first order puts "a/b.go" before "a.go"; sort so callers get
+	// plain path order.
+	sort.Slice(w.files, func(i, j int) bool { return w.files[i].Path < w.files[j].Path })
+	sort.Slice(w.skipped, func(i, j int) bool { return w.skipped[i].Path < w.skipped[j].Path })
+	return Result{Root: resolved, Files: w.files, Skipped: w.skipped}, nil
 }
 
-func scanRoot(root rootFS, limits Limits) (Result, error) {
-	s := scanner{root: root, limits: limits, result: emptyResult()}
-	err := s.walk(".", 0)
-	s.result.Complete = err == nil
-	sort.Slice(s.result.Files, func(i, j int) bool { return s.result.Files[i].Path < s.result.Files[j].Path })
-	sort.Slice(s.result.Skipped, func(i, j int) bool {
-		if s.result.Skipped[i].Path != s.result.Skipped[j].Path {
-			return s.result.Skipped[i].Path < s.result.Skipped[j].Path
-		}
-		return s.result.Skipped[i].Reason < s.result.Skipped[j].Reason
-	})
-	return s.result, err
+func withDefaults(o Options) Options {
+	if o.MaxFileBytes <= 0 {
+		o.MaxFileBytes = DefaultMaxFileBytes
+	}
+	if o.MaxFiles <= 0 {
+		o.MaxFiles = DefaultMaxFiles
+	}
+	if o.MaxEntries <= 0 {
+		o.MaxEntries = DefaultMaxEntries
+	}
+	if o.MaxDepth <= 0 {
+		o.MaxDepth = DefaultMaxDepth
+	}
+	if o.IgnoredDirs == nil {
+		o.IgnoredDirs = DefaultIgnoredDirs
+	}
+	if o.readDir == nil {
+		o.readDir = os.ReadDir
+	}
+	if o.lstat == nil {
+		o.lstat = os.Lstat
+	}
+	return o
 }
 
-func emptyResult() Result { return Result{Files: []File{}, Skipped: []Skip{}} }
-
-func validateLimits(l Limits) error {
-	if l.MaxFileBytes <= 0 || l.MaxTotalBytes <= 0 || l.MaxFiles <= 0 || l.MaxEntries <= 0 || l.MaxDepth <= 0 {
-		return fmt.Errorf("all scan limits must be positive")
-	}
-	return nil
+type walk struct {
+	opts    Options
+	root    string
+	ignored map[string]bool
+	entries int
+	files   []File
+	skipped []Skip
 }
 
-func (s *scanner) walk(dir string, depth int) error {
-	if depth > s.limits.MaxDepth {
-		return fmt.Errorf("directory %q exceeds maximum depth %d", dir, s.limits.MaxDepth)
+func (w *walk) skip(rel, reason string) {
+	w.skipped = append(w.skipped, Skip{Path: rel, Reason: reason})
+}
+
+// dir visits the directory at abs, whose root-relative path is rel.
+func (w *walk) dir(abs, rel string, depth int) error {
+	if depth > w.opts.MaxDepth {
+		return fmt.Errorf("%w: %q is deeper than %d directories", ErrLimit, rel, w.opts.MaxDepth)
 	}
-	f, err := s.root.OpenFile(dir, directoryOpenFlags(), 0)
+	entries, err := w.opts.readDir(abs)
 	if err != nil {
-		return fmt.Errorf("open directory %q: %w", dir, err)
+		if rel == "" {
+			return fmt.Errorf("read scan root: %w", err)
+		}
+		// An unreadable subdirectory is reported, not fatal: the rest of
+		// the tree can still be scanned and the gap is visible in the report.
+		w.skip(rel, "unreadable directory: "+errText(err))
+		return nil
 	}
-	info, err := f.Stat()
-	if err != nil || !info.IsDir() {
-		f.Close()
-		if err != nil {
-			return fmt.Errorf("inspect opened directory %q: %w", dir, err)
+	for _, e := range entries {
+		w.entries++
+		if w.entries > w.opts.MaxEntries {
+			return fmt.Errorf("%w: more than %d filesystem entries", ErrLimit, w.opts.MaxEntries)
 		}
-		return fmt.Errorf("directory %q changed to a non-directory", dir)
-	}
-	// Read incrementally and stop after one entry beyond the global budget.
-	// A directory with millions of entries cannot cause unbounded allocation.
-	entries := []fs.DirEntry{}
-	for {
-		remaining := s.limits.MaxEntries - s.result.EntriesVisited
-		n := 128
-		if remaining < n {
-			n = remaining + 1
-		}
-		batch, readErr := f.ReadDir(n)
-		for _, entry := range batch {
-			if s.result.EntriesVisited == s.limits.MaxEntries {
-				f.Close()
-				return fmt.Errorf("directory %q exceeds maximum visited entries %d", dir, s.limits.MaxEntries)
-			}
-			s.result.EntriesVisited++
-			entries = append(entries, entry)
-		}
-		if readErr != nil {
-			if readErr != io.EOF {
-				f.Close()
-				return fmt.Errorf("read directory %q: %w", dir, readErr)
-			}
-			break
-		}
-	}
-	if err := f.Close(); err != nil {
-		return fmt.Errorf("close directory %q: %w", dir, err)
-	}
-	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
-	for _, entry := range entries {
-		name := path.Join(dir, entry.Name())
-		info, err := s.root.Lstat(name)
-		if err != nil {
-			return fmt.Errorf("inspect entry %q: %w", name, err)
-		}
+		name := e.Name()
+		childAbs := filepath.Join(abs, name)
+		childRel := path.Join(rel, name)
+
 		switch {
-		case info.Mode()&os.ModeSymlink != 0:
-			s.skip(name, "symlink")
-		case info.IsDir():
-			if ignoredDirectories[entry.Name()] {
-				s.skip(name, "ignored_directory")
-				continue
-			}
-			if err := s.walk(name, depth+1); err != nil {
+		case e.Type()&fs.ModeSymlink != 0:
+			if err := w.symlink(childAbs, childRel); err != nil {
 				return err
 			}
-		case !info.Mode().IsRegular():
-			s.skip(name, "non_regular")
+		case e.IsDir():
+			if w.ignored[name] {
+				w.skip(childRel, "ignored directory")
+				continue
+			}
+			if err := w.dir(childAbs, childRel, depth+1); err != nil {
+				return err
+			}
+		case e.Type().IsRegular():
+			info, err := w.opts.lstat(childAbs)
+			if err != nil {
+				w.skip(childRel, "unreadable file: "+errText(err))
+				continue
+			}
+			if err := w.file(childRel, name, info.Size()); err != nil {
+				return err
+			}
 		default:
-			kind := fileKind(entry.Name())
-			if kind == "" {
-				continue
-			}
-			if strings.HasSuffix(entry.Name(), ".min.js") {
-				s.skip(name, "generated")
-				continue
-			}
-			if err := s.readFile(name, kind, info); err != nil {
-				return err
+			// Devices, sockets and pipes are never relevant and reading
+			// them could block.
+			if _, _, ok := Classify(name); ok {
+				w.skip(childRel, "not a regular file")
 			}
 		}
 	}
 	return nil
 }
 
-func (s *scanner) readFile(name, kind string, before fs.FileInfo) error {
-	if s.candidateFiles == s.limits.MaxFiles {
-		return fmt.Errorf("file %q exceeds maximum selected files %d", name, s.limits.MaxFiles)
-	}
-	s.candidateFiles++
-	if before.Size() > s.limits.MaxFileBytes {
-		return fmt.Errorf("file %q exceeds maximum file bytes %d", name, s.limits.MaxFileBytes)
-	}
-	remaining := s.limits.MaxTotalBytes - s.result.BytesRead
-	if before.Size() > remaining {
-		return fmt.Errorf("file %q exceeds maximum total bytes %d", name, s.limits.MaxTotalBytes)
-	}
-	f, err := s.root.OpenFile(name, sourceOpenFlags(), 0)
-	if err != nil {
-		return fmt.Errorf("open file %q: %w", name, err)
-	}
-	defer f.Close()
-	info, err := f.Stat()
-	if err != nil {
-		return fmt.Errorf("inspect opened file %q: %w", name, err)
-	}
-	if !info.Mode().IsRegular() || !os.SameFile(before, info) {
-		return fmt.Errorf("file %q changed during discovery", name)
-	}
-	limit := min(s.limits.MaxFileBytes, remaining)
-	data, err := io.ReadAll(io.LimitReader(f, limit))
-	s.result.BytesRead += int64(len(data))
-	if err != nil {
-		return fmt.Errorf("read file %q: %w", name, err)
-	}
-	// The extra byte detects growth since Stat without overflowing limit+1.
-	var extra [1]byte
-	n, err := f.Read(extra[:])
-	s.result.BytesRead += int64(n)
-	if n > 0 {
-		return fmt.Errorf("file %q grew beyond file or total byte limit", name)
-	}
-	if err != nil && err != io.EOF {
-		return fmt.Errorf("finish reading file %q: %w", name, err)
-	}
-	if bytes.IndexByte(data, 0) >= 0 {
-		if !strings.HasSuffix(kind, "_source") {
-			return fmt.Errorf("dependency metadata file %q contains NUL bytes", name)
-		}
-		s.skip(name, "binary")
+func (w *walk) file(rel, name string, size int64) error {
+	kind, cat, ok := Classify(name)
+	if !ok {
 		return nil
 	}
-	if kind == "go_source" && generatedGo(data) {
-		s.skip(name, "generated")
+	if size > w.opts.MaxFileBytes {
+		w.skip(rel, fmt.Sprintf("larger than %d bytes", w.opts.MaxFileBytes))
 		return nil
 	}
-	s.result.Files = append(s.result.Files, File{Path: name, Kind: kind, Size: int64(len(data)), Data: data})
+	if len(w.files) >= w.opts.MaxFiles {
+		return fmt.Errorf("%w: more than %d relevant files", ErrLimit, w.opts.MaxFiles)
+	}
+	w.files = append(w.files, File{Path: rel, Kind: kind, Category: cat, Size: size})
 	return nil
 }
 
-func (s *scanner) skip(name, reason string) {
-	s.result.Skipped = append(s.result.Skipped, Skip{Path: name, Reason: reason})
+// symlink handles a symbolic link. Links are never followed into
+// directories, which rules out cycles; with FollowSymlinks a link to a
+// regular file is included only when its target resolves inside the root.
+func (w *walk) symlink(abs, rel string) error {
+	if !w.opts.FollowSymlinks {
+		w.skip(rel, "symlink not followed")
+		return nil
+	}
+	target, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		w.skip(rel, "broken symlink")
+		return nil
+	}
+	if !within(w.root, target) {
+		w.skip(rel, "symlink target outside scan root")
+		return nil
+	}
+	info, err := os.Stat(target)
+	if err != nil {
+		w.skip(rel, "unreadable symlink target: "+errText(err))
+		return nil
+	}
+	if info.IsDir() {
+		w.skip(rel, "symlinked directory not followed")
+		return nil
+	}
+	if !info.Mode().IsRegular() {
+		w.skip(rel, "symlink to non-regular file not followed")
+		return nil
+	}
+	return w.file(rel, path.Base(rel), info.Size())
 }
 
-func fileKind(name string) string {
-	switch name {
-	case "go.mod":
-		return "go_module"
-	case "go.sum":
-		return "go_checksum"
-	case "go.work":
-		return "go_workspace"
-	case "go.work.sum":
-		return "go_workspace_checksum"
-	case "package.json":
-		return "js_manifest"
-	case "package-lock.json", "npm-shrinkwrap.json":
-		return "npm_lock"
-	case "yarn.lock":
-		return "yarn_lock"
-	case "pnpm-lock.yaml":
-		return "pnpm_lock"
-	case "pnpm-workspace.yaml":
-		return "pnpm_workspace"
+func within(root, p string) bool {
+	r, err := filepath.Rel(root, p)
+	if err != nil {
+		return false
 	}
-	switch path.Ext(name) {
-	case ".go":
-		return "go_source"
-	case ".js", ".jsx":
-		return "js_source"
-	case ".ts", ".tsx":
-		return "ts_source"
-	}
-	return ""
+	return r != ".." && !strings.HasPrefix(r, ".."+string(filepath.Separator)) && !filepath.IsAbs(r)
 }
 
-func generatedGo(data []byte) bool {
-	// The generated-code convention requires an exact marker line before the
-	// first non-comment, nonblank text (https://go.dev/s/generatedcode). Lexing
-	// the header handles package tabs, block comments, and malformed leading
-	// tokens without mistaking markers in the program body for generated headers.
-	f := token.NewFileSet().AddFile("", -1, len(data))
-	var lex goscanner.Scanner
-	invalid := false
-	lex.Init(f, data, func(token.Position, string) { invalid = true }, goscanner.ScanComments)
-	for {
-		pos, tok, text := lex.Scan()
-		if invalid || tok != token.COMMENT {
-			return false
-		}
-		firstLine := true
-		for line := range strings.SplitSeq(text, "\n") {
-			// A first-line comment token may start after indentation; the exact
-			// marker regexp requires // at the beginning of the physical line.
-			atLineStart := !firstLine || f.Position(pos).Column == 1
-			firstLine = false
-			if atLineStart {
-				if rest, ok := strings.CutPrefix(line, "// Code generated "); ok {
-					if _, ok := strings.CutSuffix(rest, " DO NOT EDIT."); ok {
-						return true
-					}
-				}
-			}
-		}
+// errText strips the absolute path from *PathError values so reports only
+// carry root-relative paths.
+func errText(err error) string {
+	var pe *fs.PathError
+	if errors.As(err, &pe) {
+		return pe.Err.Error()
 	}
+	return err.Error()
 }

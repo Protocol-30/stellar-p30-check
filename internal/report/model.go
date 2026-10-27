@@ -1,18 +1,17 @@
-// Package report defines the versioned output and exit policy for p30check.
+// Package report defines the versioned scan report model and its renderers.
 package report
 
 import (
-	"cmp"
 	"fmt"
-	"slices"
+	"sort"
 	"time"
-
-	"github.com/Protocol-30/stellar-p30-check/internal/deps"
 )
 
-// SchemaVersion changes when the report's consumer-visible contract changes.
-const SchemaVersion = "2"
+// SchemaVersion identifies the JSON report contract. Additive, optional
+// fields keep the version; renamed, removed or re-typed fields bump it.
+const SchemaVersion = "1"
 
+// Severity is how much a confirmed issue would matter.
 type Severity string
 
 const (
@@ -21,6 +20,7 @@ const (
 	SeverityHigh   Severity = "high"
 )
 
+// Confidence is how strong the evidence behind a finding is.
 type Confidence string
 
 const (
@@ -29,6 +29,31 @@ const (
 	ConfidenceHigh   Confidence = "high"
 )
 
+// Severities lists every valid severity, lowest first.
+var Severities = []Severity{SeverityInfo, SeverityMedium, SeverityHigh}
+
+func (s Severity) rank() int {
+	for i, v := range Severities {
+		if v == s {
+			return i
+		}
+	}
+	return -1
+}
+
+// Valid reports whether s is a known severity.
+func (s Severity) Valid() bool { return s.rank() >= 0 }
+
+// Valid reports whether c is a known confidence level.
+func (c Confidence) Valid() bool {
+	switch c {
+	case ConfidenceLow, ConfidenceMedium, ConfidenceHigh:
+		return true
+	}
+	return false
+}
+
+// Finding is one compatibility signal produced by a rule.
 type Finding struct {
 	RuleID      string     `json:"rule_id"`
 	Severity    Severity   `json:"severity"`
@@ -41,202 +66,165 @@ type Finding struct {
 	References  []string   `json:"references"`
 }
 
-type Summary struct {
-	Total  int `json:"total"`
-	Info   int `json:"info"`
-	Medium int `json:"medium"`
-	High   int `json:"high"`
+// Validate rejects findings a rule should never emit.
+func (f Finding) Validate() error {
+	switch {
+	case f.RuleID == "":
+		return fmt.Errorf("finding has no rule_id")
+	case !f.Severity.Valid():
+		return fmt.Errorf("finding %s: invalid severity %q", f.RuleID, f.Severity)
+	case !f.Confidence.Valid():
+		return fmt.Errorf("finding %s: invalid confidence %q", f.RuleID, f.Confidence)
+	case f.Path == "":
+		return fmt.Errorf("finding %s: no path", f.RuleID)
+	case f.Line < 0:
+		return fmt.Errorf("finding %s: negative line %d", f.RuleID, f.Line)
+	case f.Message == "":
+		return fmt.Errorf("finding %s: no message", f.RuleID)
+	}
+	return nil
 }
 
-// InventoryItem describes a discovered manifest, lockfile, or selected source
-// file; its contents are deliberately not included in the report.
+// Inventory categories.
+const (
+	CategoryManifest = "manifest"
+	CategorySource   = "source"
+)
+
+// InventoryItem is a discovered file relevant to Protocol 30 checks.
 type InventoryItem struct {
-	Path string `json:"path"`
-	Kind string `json:"kind"`
-	Size int64  `json:"size"`
+	Path     string `json:"path"`
+	Kind     string `json:"kind"`
+	Category string `json:"category"`
 }
 
-type Skipped struct {
+// SkippedEntry is a filesystem entry the walker deliberately did not inspect.
+type SkippedEntry struct {
 	Path   string `json:"path"`
 	Reason string `json:"reason"`
 }
 
-// Coverage distinguishes deliberate exclusions from unexpectedly incomplete
-// scans. Complete describes discovery scope, not protocol compatibility.
-type Coverage struct {
-	Complete         bool      `json:"complete"`
-	RulesImplemented int       `json:"rules_implemented"`
-	FilesScanned     int       `json:"files_scanned"`
-	EntriesVisited   int       `json:"entries_visited"`
-	BytesRead        int64     `json:"bytes_read"`
-	Skipped          []Skipped `json:"skipped"`
+// Warning is a scan-level notice that is not a finding, such as a check
+// that does not exist yet for a discovered manifest.
+type Warning struct {
+	Code    string `json:"code"`
+	Path    string `json:"path,omitempty"`
+	Message string `json:"message"`
 }
 
+// Summary holds counts derived from the rest of the report.
+type Summary struct {
+	ManifestFiles      int              `json:"manifest_files"`
+	SourceFiles        int              `json:"source_files"`
+	SkippedEntries     int              `json:"skipped_entries"`
+	RulesExecuted      int              `json:"rules_executed"`
+	Findings           int              `json:"findings"`
+	FindingsBySeverity map[Severity]int `json:"findings_by_severity"`
+	Warnings           int              `json:"warnings"`
+}
+
+// ScanReport is the root of every rendered report.
 type ScanReport struct {
-	SchemaVersion      string            `json:"schema_version"`
-	ToolVersion        string            `json:"tool_version"`
-	Target             string            `json:"target"`
-	CheckedAtUTC       string            `json:"checked_at_utc"`
-	Findings           []Finding         `json:"findings"`
-	Summary            Summary           `json:"summary"`
-	Limitations        []string          `json:"limitations"`
-	Inventory          []InventoryItem   `json:"inventory"`
-	Dependencies       []deps.Dependency `json:"dependencies"`
-	DependencyWarnings []deps.Warning    `json:"dependency_warnings"`
-	Coverage           Coverage          `json:"coverage"`
-	Error              string            `json:"error,omitempty"`
+	SchemaVersion string          `json:"schema_version"`
+	ToolVersion   string          `json:"tool_version"`
+	Target        string          `json:"target"`
+	CheckedAtUTC  string          `json:"checked_at_utc"`
+	Findings      []Finding       `json:"findings"`
+	Summary       Summary         `json:"summary"`
+	Inventory     []InventoryItem `json:"inventory"`
+	Skipped       []SkippedEntry  `json:"skipped"`
+	Warnings      []Warning       `json:"warnings"`
+	Limitations   []string        `json:"limitations"`
 }
 
-// New accepts a clock value rather than reading the clock internally so tests
-// and reproducible callers can choose exactly the same timestamp.
-func New(target, version string, now time.Time) ScanReport {
-	return ScanReport{
-		SchemaVersion:      SchemaVersion,
-		ToolVersion:        version,
-		Target:             target,
-		CheckedAtUTC:       now.UTC().Format(time.RFC3339Nano),
-		Findings:           []Finding{},
-		Limitations:        []string{},
-		Inventory:          []InventoryItem{},
-		Dependencies:       []deps.Dependency{},
-		DependencyWarnings: []deps.Warning{},
-		Coverage:           Coverage{Skipped: []Skipped{}},
+// New builds a report with sorted contents and a computed summary. Nil
+// slices become empty so JSON output always carries arrays.
+func New(toolVersion, target string, checkedAt time.Time, rulesExecuted int,
+	findings []Finding, inventory []InventoryItem, skipped []SkippedEntry,
+	warnings []Warning, limitations []string) ScanReport {
+	r := ScanReport{
+		SchemaVersion: SchemaVersion,
+		ToolVersion:   toolVersion,
+		Target:        target,
+		CheckedAtUTC:  checkedAt.UTC().Format(time.RFC3339),
+		Findings:      append([]Finding{}, findings...),
+		Inventory:     append([]InventoryItem{}, inventory...),
+		Skipped:       append([]SkippedEntry{}, skipped...),
+		Warnings:      append([]Warning{}, warnings...),
+		Limitations:   append([]string{}, limitations...),
 	}
-}
-
-func validateFinding(f Finding) error {
-	switch f.Severity {
-	case SeverityInfo, SeverityMedium, SeverityHigh:
-	default:
-		return fmt.Errorf("finding %q: invalid severity %q", f.RuleID, f.Severity)
-	}
-	switch f.Confidence {
-	case ConfidenceLow, ConfidenceMedium, ConfidenceHigh:
-	default:
-		return fmt.Errorf("finding %q: invalid confidence %q", f.RuleID, f.Confidence)
-	}
-	if f.Line < 0 {
-		return fmt.Errorf("finding %q: line must not be negative", f.RuleID)
-	}
-	return nil
-}
-
-// Normalize validates finding enums, recomputes counts, and orders collections.
-// It mutates r. Render clones its input before calling Normalize.
-func Normalize(r *ScanReport) error {
-	if r == nil {
-		return fmt.Errorf("cannot normalize a nil report")
-	}
-	for _, f := range r.Findings {
-		if err := validateFinding(f); err != nil {
-			return err
-		}
-	}
-	for _, d := range r.Dependencies {
-		if d.Line < 0 {
-			return fmt.Errorf("dependency %q: line must not be negative", d.Name)
-		}
-		if d.Capabilities != nil {
-			for _, state := range []string{d.Capabilities.CAP88, d.Capabilities.MuxedContractXDR, d.Capabilities.WAddressHelpers} {
-				if state != "supported" && state != "unsupported" && state != "unknown" {
-					return fmt.Errorf("dependency %q: invalid capability state %q", d.Name, state)
-				}
-			}
-		}
-	}
-	for _, warning := range r.DependencyWarnings {
-		if warning.Line < 0 {
-			return fmt.Errorf("dependency warning %q: line must not be negative", warning.Code)
-		}
-	}
-	inventory := deps.Inventory{Dependencies: r.Dependencies, Warnings: r.DependencyWarnings}
-	deps.Normalize(&inventory)
-	r.Dependencies, r.DependencyWarnings = inventory.Dependencies, inventory.Warnings
-	if r.Findings == nil {
-		r.Findings = []Finding{}
-	}
-	if r.Limitations == nil {
-		r.Limitations = []string{}
-	}
-	if r.Inventory == nil {
-		r.Inventory = []InventoryItem{}
-	}
-	if r.Coverage.Skipped == nil {
-		r.Coverage.Skipped = []Skipped{}
-	}
-	r.Summary = Summary{Total: len(r.Findings)}
 	for i := range r.Findings {
-		f := &r.Findings[i]
-		if f.References == nil {
-			f.References = []string{}
-		}
-		slices.Sort(f.References)
-		switch f.Severity {
-		case SeverityInfo:
-			r.Summary.Info++
-		case SeverityMedium:
-			r.Summary.Medium++
-		case SeverityHigh:
-			r.Summary.High++
+		if r.Findings[i].References == nil {
+			r.Findings[i].References = []string{}
 		}
 	}
-	slices.SortFunc(r.Findings, compareFindings)
-	slices.SortFunc(r.Inventory, func(a, b InventoryItem) int {
-		if c := cmp.Compare(a.Path, b.Path); c != 0 {
-			return c
+	SortFindings(r.Findings)
+	sort.Slice(r.Inventory, func(i, j int) bool { return r.Inventory[i].Path < r.Inventory[j].Path })
+	sort.Slice(r.Skipped, func(i, j int) bool { return r.Skipped[i].Path < r.Skipped[j].Path })
+	sort.SliceStable(r.Warnings, func(i, j int) bool {
+		a, b := r.Warnings[i], r.Warnings[j]
+		if a.Code != b.Code {
+			return a.Code < b.Code
 		}
-		if c := cmp.Compare(a.Kind, b.Kind); c != 0 {
-			return c
-		}
-		return cmp.Compare(a.Size, b.Size)
+		return a.Path < b.Path
 	})
-	slices.SortFunc(r.Coverage.Skipped, func(a, b Skipped) int {
-		if c := cmp.Compare(a.Path, b.Path); c != 0 {
-			return c
-		}
-		return cmp.Compare(a.Reason, b.Reason)
-	})
-	return nil
-}
 
-func compareFindings(a, b Finding) int {
-	for _, c := range []int{
-		cmp.Compare(a.Path, b.Path),
-		cmp.Compare(a.Line, b.Line),
-		cmp.Compare(a.RuleID, b.RuleID),
-		cmp.Compare(a.Severity, b.Severity),
-		cmp.Compare(a.Confidence, b.Confidence),
-		cmp.Compare(a.Message, b.Message),
-		cmp.Compare(a.Evidence, b.Evidence),
-		cmp.Compare(a.Remediation, b.Remediation),
-	} {
-		if c != 0 {
-			return c
-		}
+	r.Summary = Summary{
+		SkippedEntries:     len(r.Skipped),
+		RulesExecuted:      rulesExecuted,
+		Findings:           len(r.Findings),
+		FindingsBySeverity: map[Severity]int{},
+		Warnings:           len(r.Warnings),
 	}
-	return slices.Compare(a.References, b.References)
-}
-
-// ExitCode applies an opt-in gate only to high-severity, high-confidence
-// findings. An incomplete scan or invalid policy always remains an error.
-func ExitCode(r ScanReport, failOn string) (int, error) {
-	if failOn != "none" && failOn != "high" {
-		return 2, fmt.Errorf("unsupported fail-on policy %q", failOn)
+	for _, s := range Severities {
+		r.Summary.FindingsBySeverity[s] = 0
 	}
 	for _, f := range r.Findings {
-		if err := validateFinding(f); err != nil {
-			return 2, err
+		r.Summary.FindingsBySeverity[f.Severity]++
+	}
+	for _, it := range r.Inventory {
+		switch it.Category {
+		case CategoryManifest:
+			r.Summary.ManifestFiles++
+		case CategorySource:
+			r.Summary.SourceFiles++
 		}
 	}
-	if r.Error != "" || !r.Coverage.Complete {
-		return 2, nil
-	}
-	if failOn == "high" {
-		for _, f := range r.Findings {
-			if f.Severity == SeverityHigh && f.Confidence == ConfidenceHigh {
-				return 1, nil
-			}
+	return r
+}
+
+// SortFindings orders findings by path, line, rule, then severity and
+// confidence (strongest first), then message, so output is deterministic.
+func SortFindings(fs []Finding) {
+	sort.SliceStable(fs, func(i, j int) bool {
+		a, b := fs[i], fs[j]
+		if a.Path != b.Path {
+			return a.Path < b.Path
 		}
+		if a.Line != b.Line {
+			return a.Line < b.Line
+		}
+		if a.RuleID != b.RuleID {
+			return a.RuleID < b.RuleID
+		}
+		if a.Severity != b.Severity {
+			return a.Severity.rank() > b.Severity.rank()
+		}
+		if a.Confidence != b.Confidence {
+			return confidenceRank(a.Confidence) > confidenceRank(b.Confidence)
+		}
+		return a.Message < b.Message
+	})
+}
+
+func confidenceRank(c Confidence) int {
+	switch c {
+	case ConfidenceLow:
+		return 0
+	case ConfidenceMedium:
+		return 1
+	case ConfidenceHigh:
+		return 2
 	}
-	return 0, nil
+	return -1
 }

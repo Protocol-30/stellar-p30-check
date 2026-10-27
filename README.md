@@ -1,109 +1,103 @@
 # stellar-p30-check
 
-An offline CLI for bounded repository discovery and conservative Stellar Protocol 30 signals. **M4 adds scoped raw-ledger XDR review (P30-XDR-001) and whole-second timestamp clues (P30-TS-001)** alongside the dependency and W-address rules.
+An offline, read-only command-line scanner that flags Stellar
+**Protocol 30** compatibility risks in Go and JavaScript/TypeScript
+repositories: outdated SDKs, address validation that rejects CAP-84 `W`
+muxed-contract addresses, and ledger-header decoding that predates CAP-88.
 
-An empty findings list or exit 0 does **not** certify compatibility. Unsupported formats, unresolved selections, unknown versions, and missing runtime context remain explicit. Address analysis covers only supported local guard/helper patterns; it is not general dataflow analysis. Ledger checks cover documented direct decoding and typed Go timestamp patterns only.
+> **Status: v0.1.0-dev, DripWave Phase 8 (build), step 8.2 done.** One rule
+> ships: [P30-DEP-001](docs/rules.md#p30-dep-001-stellar-sdk-version) checks
+> Stellar SDK versions. Address and XDR source checks are not built yet, and
+> every report says so. See [docs/roadmap.md](docs/roadmap.md) and
+> [docs/limitations.md](docs/limitations.md).
 
-## Build and run
+`stellar-p30-check` is a working name.
 
-Use Go **1.27.3**, **`CGO_ENABLED=1`**, and a C compiler for normal builds as well as race tests. JS/TS syntax analysis uses official Tree-sitter Go bindings `v0.24.0`, JavaScript grammar `v0.23.1`, and TypeScript grammar `v0.23.2`. The grammar pins use ABI 14 compatible with these bindings; the newer JS grammar v0.25 uses a different ABI and is not substituted. Existing manifest parsers remain `golang.org/x/mod v0.42.0` and `go.yaml.in/yaml/v3 v3.0.5`. Versions/checksums are pinned in `go.mod`/`go.sum`; no pure-Go feature-disabled fallback is provided. It has no Stellar SDK dependency. Initial development installation may download these modules; running the built scanner performs no network calls or target commands.
+## Quick start
 
-```sh
-export CGO_ENABLED=1
-go mod download
-go build ./cmd/p30check
-./p30check --help
-./p30check scan .
-# Intentionally incompatible fixture: this gated scan exits 1
-./p30check scan testdata/m3-js-reject-w --format json --fail-on high
-```
-
-In the prepared cloud environment, activate the installed compiler first:
+Requires Go 1.25 or newer (CI tests on Go 1.26 and 1.27).
 
 ```sh
-source /workspace/dev-env.sh
-cd /workspace/stellar-p30-check
+go build -o p30check ./cmd/p30check
+./p30check scan path/to/your/repo
+./p30check scan path/to/your/repo --format json
 ```
 
-The portable repository helper is `scripts/dev-env.sh`; see its usage outside this cloud environment. No credentials, RPC endpoint, database, or background service is needed. Scan targets are read as data: their commands, package managers, build scripts, and source code are never executed.
+Example, on a fixture that pins `@stellar/stellar-sdk` 16.4.0:
 
-## Dependency evidence
+```text
+$ ./p30check scan testdata/fixtures/js-app
+p30check 0.1.0-dev - Stellar Protocol 30 compatibility scan (report schema 1)
+Target:     testdata/fixtures/js-app
+...
+Rules run:  1
 
-- Go: parse `go.mod` requirements/replacements and `go.work` statically. Declared and replacement versions are observations, not proven minimal-version selection; Go records remain `effective: false`. `go.sum` does not prove selected versions and cannot generate a compatibility finding.
-- JS: inspect package manifests and supported npm v1/v2/v3, Yarn Classic v1, and partial pnpm v9 lock data. A nominal effective lock selection requires compatible declaration/version/identity evidence and matching expected official-registry tarball URL metadata. This does not verify actual registry routing, artifact origin, download, or installation. npm registry URLs can be redirected by installer configuration; the scanner does not read credential-bearing npmrc files. Unproven sources, unsupported ranges/workspace patterns, aliases, forks, patches, and unsupported constructs retain uncertainty. Ancestor locks need current supported workspace-membership evidence; stale lock importers alone are insufficient. Declared package-manager metadata must also match the supported lock family/version. A typical integrity-only pnpm record lacks the expected registry URL metadata.
-- Capabilities: exact verified official JS SDK versions 16.3.1, 16.4.0, and 17.3.0, and Go SDK v0.8.0. XDR decoding and high-level W helpers are separate capabilities. Unknown/future versions are not extrapolated.
-
-`P30-DEP-001` emits a **medium-severity, high-confidence** finding only when supported lock/declaration metadata nominally selects a canonical official SDK release with a verified missing capability and no unresolved uncertainty. It does not establish that the application uses that feature. Accordingly these dependency findings do **not** trip `--fail-on high`. See [rules](docs/rules.md) and [limitations](docs/limitations.md).
-
-## W-address checks
-
-P30-ADDR-001 requires a supported same-function guard that rejects W immediately before a specific imported W-only helper consumes the **same simple parameter**. An isolated prefix/regex match is insufficient.
-
-| Local evidence | Severity / confidence |
-|---|---|
-| JS/TS W-only helper, unambiguous local flow/import, nearest current package has uncertainty-free nominal SDK 17.3.0 W-support selection | high / high |
-| Supported W-only helper flow but SDK selection unresolved, including Go's unproven selected version | medium / medium |
-| JS instance `TransactionBuilder.addSacTransferOperation(destination, asset, amount, ...)` destination flow | medium / low; account-only business policy may be intentional |
-
-Account-only G/M fields, C-only decoders, AddressObject inputs, contract storage keys, and Go `MuxedContract.SetContractID` are not reasons to accept W indiscriminately. Supported W-accepting guards do not produce a rejection finding. See [exact rule scope](docs/rules.md) and [false negatives](docs/limitations.md).
-
-## Scope and limits
-
-Discovery includes Go/JS manifests and locks, plus `.go`, `.js`, `.jsx`, `.ts`, and `.tsx` sources. Go syntax uses the standard parser; JS/TS/JSX/TSX syntax uses Tree-sitter. Neither compiles nor executes target code.
-
-| Flag | Default | Meaning |
-|---|---:|---|
-| `--max-file-bytes` | 2097152 (2 MiB) | Maximum bytes per selected file |
-| `--max-total-bytes` | 67108864 (64 MiB) | Total bytes read, including subsequently excluded generated/binary candidates |
-| `--max-files` | 10000 | Maximum relevant regular-file candidates |
-| `--max-entries` | 100000 | Child entries encountered, including unrelated extensions |
-| `--max-depth` | 64 | Directory nesting; the target root is depth 0 |
-
-Ignored directory basenames are `.git`, `node_modules`, `vendor`, `dist`, `build`, `.next`, `coverage`, and `.cache`. Symlinks, special files, `*.min.js`, detected generated Go sources, and NUL-containing selected source files are excluded with recorded reasons. NUL-containing recognized dependency metadata instead produces an incomplete error; it cannot be silently skipped. The target must be a directory and may not be a symlink. Unexpected read/traversal errors, exceeded ceilings, and malformed or safety-rejected recognized manifests/locks produce an incomplete report and exit 2. Valid unsupported dependency formats produce warnings rather than invented analysis. Unsupported/invalid source syntax adds a per-file limitation without a finding; parser resource exhaustion instead makes the scan incomplete. JS parsing is bounded to 2 seconds per file and source AST traversal to 200000 nodes per file. Unmatched source patterns remain false negatives, not proof of compatibility.
-
-## Reports and exit codes
-
-Schema **`"2"`** adds `dependencies` and `dependency_warnings` to findings, inventory, limitations, and coverage. Records distinguish declarations, observed versions, resolution/source evidence, effective selection, and uncertainty. `coverage.complete` means processing completed within the chosen filesystem scope, not that every dependency was resolved or every compatibility condition was checked. `coverage.rules_implemented` is 4. See the [report contract](docs/architecture.md#report-contract).
-
-| Exit | Meaning |
-|---:|---|
-| 0 | Completed scan without gated findings, or successful help |
-| 1 | At least one high-severity **and** high-confidence finding, with `--fail-on high` |
-| 2 | Invalid arguments, malformed recognized input, scan/report failure, or unexpected incomplete scan |
-
-The default is `--fail-on none`. A proven high/high M3 JS rejection can now trigger actual exit 1 with `--fail-on high`; dependency, unresolved-selection, and SAC-policy hints cannot. Source-analysis notices use `limitations`, not `dependency_warnings`. Address analysis runs only after complete filesystem discovery and dependency-metadata processing. The repository includes deliberately incompatible fixtures, so a full-repository gated scan may legitimately exit 1. Schema v1 is retained as a historical document, not an output option.
-
-## Try the fixtures
-
-```sh
-./p30check scan testdata/m2-js-legacy --format json
-./p30check scan testdata/m2-js-modern --format json
-./p30check scan testdata/m2-go-observed --format json
-./p30check scan testdata/m3-js-allow-w --format json --fail-on high
-./p30check scan testdata/m3-js-sac-policy --format json
-./p30check scan testdata/m3-go-review --format json
+Findings (1): 0 high, 1 medium, 0 info
+  [medium severity, high confidence] P30-DEP-001 package.json:5
+      @stellar/stellar-sdk 16.4.0: decodes Protocol 30 ledgers but cannot handle W muxed-contract addresses (CAP-84)
+      evidence: package.json dependencies declares "@stellar/stellar-sdk": "16.4.0"
+      fix:      Upgrade to @stellar/stellar-sdk 17.3.0 or later. Stay on 16.4.x only if the app never parses, validates or displays contract addresses.
+...
+Warnings (1):
+  [rules-not-implemented] not checked by this build: P30-ADDR-001, P30-XDR-001, P30-TS-001; see docs/roadmap.md
 ```
 
-The legacy JS fixture demonstrates a resolved missing-capability finding; the modern fixture demonstrates a known supported SDK observation without source-code certification. The Go dependency fixture demonstrates a known observed version whose effective build selection remains unproven. M3 fixtures distinguish W-accepting code, lower-confidence SAC policy, and unresolved Go W-only-helper review guidance. Fixtures are synthetic local examples, not captured ledgers or installed target environments; see [testdata](testdata/README.md).
+Full outputs: [testdata/golden/](testdata/golden/).
 
-## Development
+## What it checks today
 
-```sh
-export CGO_ENABLED=1
-go mod verify
-go test ./...
-go test -race ./...
-go vet ./...
-go build ./cmd/p30check
-python3 scripts/smoke.py
+| SDK | Flagged |
+|-----|---------|
+| `github.com/stellar/go-stellar-sdk` | before v0.8.0 |
+| `github.com/stellar/go` | always (deprecated, no Protocol 30 support) |
+| `@stellar/stellar-sdk` | before 17.3.0 (16.4.x is medium: ledgers decode, `W` addresses do not) |
+| `@stellar/stellar-base`, `stellar-sdk`, `stellar-base` | published versions have no Protocol 30 support |
+
+Versions are read from `go.mod`, `package-lock.json` / `npm-shrinkwrap.json`
+and `package.json`. Details and known false positives:
+[docs/rules.md](docs/rules.md).
+
+## Usage
+
+```text
+p30check scan <path> [flags]
+  --format text|json        output format (default text)
+  --fail-on none|high       exit 1 when a high-severity, high-confidence finding is reported (default none)
+  --max-file-bytes N        skip files larger than N bytes (default 16777216)
+  --max-files N             fail if more than N relevant files are found (default 20000)
+  --follow-symlinks         include symlinked files whose target stays inside <path>
+p30check version
+p30check help
 ```
 
-The smoke script uses Python 3 standard library; the scanner binary itself has no Python dependency.
+Flags may come before or after the path.
 
-The workflow `.github/workflows/ci.yml` defines job `test`, displayed as **Go checks**. Local validation and a checked-in workflow do not establish a successful GitHub Actions run. Read the [M4 build report](docs/m4-build-report.md) for recorded validation status.
+| Exit code | Meaning |
+|-----------|---------|
+| 0 | Scan completed, nothing matched `--fail-on` |
+| 1 | Scan completed, `--fail-on high` and a finding is high severity **and** high confidence |
+| 2 | Usage error or the scan could not complete (no partial report is printed) |
 
-Read [architecture](docs/architecture.md), [limitations](docs/limitations.md), [evidence](docs/evidence.md), [rules and next increment](docs/rules.md), and [contributing](CONTRIBUTING.md). The [M0/M1 build report](docs/build-report.md), [M2 build report](docs/m2-build-report.md), and original planning documents are historical; later planned milestones are not shipped functionality.
+## Safety
 
-The repository has no selected license yet. No release, distribution grant, program acceptance, or compatibility certification is claimed.
+- Reads files only. Never executes, builds or imports scanned code, and
+  never runs a package manager; no network.
+- Stays inside `<path>`: symlinks are not followed by default, and never
+  outside the root.
+- Bounded by file-size, file-count, entry-count and depth ceilings.
+- A malformed manifest produces a warning, not a crash.
+- Reports use root-relative paths; text output escapes control characters.
 
-M4 examples: `./p30check scan testdata/m4-js-legacy --format json` and `./p30check scan testdata/m4-go-review --format json`. These findings are review guidance and do not trigger the high gate.
+## Documentation
+
+- [docs/roadmap.md](docs/roadmap.md) — where the project is, by DripWave phase
+- [docs/rules.md](docs/rules.md) — rule catalog
+- [docs/architecture.md](docs/architecture.md) — pipeline, report schema, exit codes
+- [docs/limitations.md](docs/limitations.md) — what a scan can and cannot tell you
+- [docs/evidence.md](docs/evidence.md) — verified Protocol 30 / SDK facts with sources and dates
+- [docs/plan/](docs/plan/) — original build plan and backlog
+- [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [CHANGELOG.md](CHANGELOG.md)
+
+## License
+
+Not yet chosen; the repository owner will add a `LICENSE` file.
