@@ -5,8 +5,8 @@ An offline, read-only command-line scanner that flags Stellar
 repositories: outdated SDKs, address validation that rejects CAP-84 `W`
 muxed-contract addresses, and ledger-header decoding that predates CAP-88.
 
-> **Status: v0.1.0-dev, DripWave Phase 8 (build and test) done.** All four
-> planned rules ship:
+> **Status: v0.1.0 released; DripWave Phase 10 (repo hygiene) in progress.**
+> All four planned rules ship:
 > [P30-DEP-001](docs/rules.md#p30-dep-001-stellar-sdk-version) (SDK versions),
 > [P30-ADDR-001](docs/rules.md#p30-addr-001-w-address-handling) (address
 > checks that reject `W`), [P30-XDR-001](docs/rules.md#p30-xdr-001-ledger-xdr)
@@ -126,6 +126,7 @@ Flags may come before or after the path.
 - [docs/verification.md](docs/verification.md) — what was tested, on what, and the results
 - [docs/ci-integration.md](docs/ci-integration.md) — installing and gating in CI
 - [docs/release.md](docs/release.md) — how releases are built and published
+- [docs/maintaining.md](docs/maintaining.md) — repository settings, issues and labels
 - [docs/plan/](docs/plan/) — original build plan and backlog
 - [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [CHANGELOG.md](CHANGELOG.md)
 
