@@ -39,6 +39,14 @@ Markers searched for: Go — `StellarValueTypeStellarValueSignedMs` in
 | E13 | `@stellar/stellar-base` latest is 15.0.0 (2026-03-30) and has no marker. `@stellar/stellar-sdk` 16.0.0 and 17.0.0 do not depend on `@stellar/stellar-base` (they bundle it). | https://registry.npmjs.org/@stellar/stellar-base, SDK `package.json` files | Registry metadata and tarball |
 | E14 | Unscoped npm `stellar-sdk` (latest 13.3.0, 2025-04-21) and `stellar-base` (latest 13.1.0, 2025-03-28) are deprecated: "This package has moved to @stellar/…". | https://registry.npmjs.org/stellar-sdk, https://registry.npmjs.org/stellar-base | Registry metadata |
 
+## Verified for Phase 8.3, the `W` address check (2026-10-27)
+
+| # | Fact | Source (as fetched) | How it was checked |
+|---|------|---------------------|--------------------|
+| E15 | SEP-23 v1.4.0 (updated 2026-09-18, status Active) defines `STRKEY_MUXED_CONTRACT`, version byte `22 << 3`, prefix `W`. Its test vector `WA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJUAAAAAAAAAAAAAWWC` (69 characters) is muxed contract `CA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJUWDA` with id 0. Prefixes in the table: G, M, S, T, X, P, C, L, B, W. | https://raw.githubusercontent.com/stellar/stellar-protocol/master/ecosystem/sep-0023.md | Read SEP text |
+| E16 | Go SDK v0.8.0 names: `strkey.IsValidEd25519PublicKey` (G), `IsValidMuxedAccountEd25519PublicKey` (M), `IsValidContractAddress` (C), `IsValidMuxedContractAddress` (W), `VersionByteContract`, `VersionByteMuxedContract`; `xdr.ScAddressTypeScAddressTypeContract` = 1, `...MuxedContract` = 5. JS SDK 17.3.0 names: `StrKey.isValidEd25519PublicKey`, `isValidMed25519PublicKey`, `isValidContract`, `isValidMuxedContract`; `xdr.ScAddressType` members `scAddressTypeContract`, `scAddressTypeMuxedContract`. | v0.8.0 module zip (`strkey/main.go`, `xdr/xdr_generated.go`); 17.3.0 tarball (`lib/axios/esm/base/strkey.d.ts`, generated XDR types) | Downloaded and searched |
+| E17 | Running P30-ADDR-001 on the SDKs themselves: go-stellar-sdk v0.7.3 gives 10 findings (strkey version-byte and `ScAddress` switches without a muxed-contract case), v0.8.0 gives 0. `@stellar/stellar-sdk` 16.3.1 and 16.4.0 give 8 medium findings (the `Address` class switches) and 4 info; 17.3.0 and 17.4.0 give 4 info (`fundAddress`, which correctly accepts only G or C). | The packages from E10 and E12 | `p30check scan` on the unpacked packages |
+
 ## Reported by the planning package, not re-verified here
 
 `stellar.org` was unreachable from this session, so these come from the

@@ -28,8 +28,8 @@ ships something that works and is tested.
 |------|----------|-----------|--------|
 | 8.1 Scanner core | `p30check scan`, safe file discovery, text/JSON reports, exit codes | Builds; tests pass; two fixture reports are byte-for-byte repeatable | Done |
 | 8.2 SDK version check (`P30-DEP-001`) | Reads `go.mod`, `package.json`, npm lockfiles; flags Stellar SDK versions without Protocol 30 support | Tells JS 16.4.x (ledger XDR yes, `W` no), JS 17.3.0+ (both) and Go v0.8.0 apart, with fixtures | Done |
-| 8.3 `W` address check (`P30-ADDR-001`) | Flags address validation that rejects CAP-84 `W` addresses | Catches rejecting samples; safe samples are not flagged high | Next |
-| 8.4 Ledger XDR and close-time checks (`P30-XDR-001`, `P30-TS-001`) | Links old XDR libraries to code that decodes ledger headers; low-confidence close-time hints | At least two CAP-88 fixtures from the spec; no blanket claims | Not started |
+| 8.3 `W` address check (`P30-ADDR-001`) | Flags address validation that rejects CAP-84 `W` addresses | Catches rejecting samples; safe samples are not flagged high | Done |
+| 8.4 Ledger XDR and close-time checks (`P30-XDR-001`, `P30-TS-001`) | Links old XDR libraries to code that decodes ledger headers; low-confidence close-time hints | At least two CAP-88 fixtures from the spec; no blanket claims | Next |
 | 8.5 Verification | Integration tests, malformed-input tests, scanner run on its own repo | Green CI; no high-confidence findings on clean fixtures | Not started |
 
 Dates are planning targets, not promises. Stellar's November 3 (Testnet) and

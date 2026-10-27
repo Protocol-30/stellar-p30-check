@@ -3,6 +3,11 @@
 ## Unreleased
 
 ### Added
+- P30-ADDR-001: finds address checks in Go and JS/TS that accept `C` with
+  `G` or `M` but not CAP-84 `W` addresses (regexes, `StrKey`/`strkey`
+  predicates, prefix checks and lists), and `SCAddress` / strkey version
+  switches with no muxed-contract case. Go uses `go/parser`; JS/TS uses a
+  tokenizer. New `source-unparsed` warning.
 - P30-DEP-001: flags official Stellar SDK versions without Protocol 30
   support, read from `go.mod` (with `replace`), npm lockfiles (v1-v3,
   workspaces, aliases) and `package.json`. Capability table sourced from the
