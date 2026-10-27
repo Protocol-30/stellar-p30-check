@@ -6,6 +6,13 @@
 - Issue forms (bug, wrong or missing finding), a pull request checklist,
   Dependabot updates for workflow actions, and docs/maintaining.md (branch
   and tag rulesets, security settings, topics).
+- docs/reading-reports.md: what severity, confidence, warnings and skipped
+  entries mean, and what to do about each.
+
+### Fixed
+- Docs: the file-size ceiling in docs/architecture.md (16 MiB), the exact
+  list of findings `--fail-on high` gates on in docs/ci-integration.md, and
+  stale "dev" and "once released" wording.
 
 ### Changed
 - SECURITY.md: fixes go into the latest release; older releases are not patched.

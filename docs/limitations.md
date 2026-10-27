@@ -22,7 +22,7 @@
 - It never runs, builds or imports the scanned code, and makes no network or
   RPC calls. It cannot observe runtime behaviour.
 
-## Limits that will remain once rules exist
+## Limits of static scanning
 
 - Static matches are indications. A high-confidence finding is strong
   evidence to review, not proof of breakage; no findings is not proof of

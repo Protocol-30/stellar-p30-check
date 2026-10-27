@@ -5,7 +5,7 @@ An offline, read-only command-line scanner that flags Stellar
 repositories: outdated SDKs, address validation that rejects CAP-84 `W`
 muxed-contract addresses, and ledger-header decoding that predates CAP-88.
 
-> **Status: v0.1.0 released; DripWave Phases 1–10 done.**
+> **Status: v0.1.0 released; DripWave Phases 1–11 done.**
 > All four planned rules ship:
 > [P30-DEP-001](docs/rules.md#p30-dep-001-stellar-sdk-version) (SDK versions),
 > [P30-ADDR-001](docs/rules.md#p30-addr-001-w-address-handling) (address
@@ -41,7 +41,7 @@ Example, on a fixture that pins `@stellar/stellar-sdk` 16.4.0:
 
 ```text
 $ ./p30check scan testdata/fixtures/js-app
-p30check 0.1.0-dev - Stellar Protocol 30 compatibility scan (report schema 1)
+p30check 0.1.0 - Stellar Protocol 30 compatibility scan (report schema 1)
 Target:     testdata/fixtures/js-app
 ...
 Rules run:  4
@@ -80,6 +80,8 @@ accessors, vendored `.x` files that predate Protocol 30, and division by a
 difference of whole-second close times.
 
 Details and known false positives: [docs/rules.md](docs/rules.md).
+
+What a report means and what to do about each finding: [docs/reading-reports.md](docs/reading-reports.md).
 
 Using it in CI (GitHub Actions, GitLab): [docs/ci-integration.md](docs/ci-integration.md).
 
@@ -120,6 +122,7 @@ Flags may come before or after the path.
 
 - [docs/roadmap.md](docs/roadmap.md) — where the project is, by DripWave phase
 - [docs/rules.md](docs/rules.md) — rule catalog
+- [docs/reading-reports.md](docs/reading-reports.md) — reading a report and triaging findings
 - [docs/architecture.md](docs/architecture.md) — pipeline, report schema, exit codes
 - [docs/limitations.md](docs/limitations.md) — what a scan can and cannot tell you
 - [docs/evidence.md](docs/evidence.md) — verified Protocol 30 / SDK facts with sources and dates

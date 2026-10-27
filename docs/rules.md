@@ -86,7 +86,7 @@ All cases: [testdata/rules/dep-001](../testdata/rules/dep-001/README.md).
 ### Known false positives and negatives
 
 - **False positive:** a range such as `^16.0.0` is judged at 16.0.0 even if
-  your yarn/pnpm lockfile installs 16.4.1. Confidence is low for that reason.
+  your yarn/pnpm lockfile installs 16.4.1. Confidence is low for that reason ([#6](https://github.com/Protocol-30/stellar-p30-check/issues/6)).
 - **False positive:** an app that only builds and submits transactions and
   never decodes ledger headers or contract addresses may keep working on an
   old SDK. The rule cannot see how the SDK is used.
@@ -180,17 +180,17 @@ All cases: [testdata/rules/addr-001](../testdata/rules/addr-001/README.md).
 ### Known false positives and negatives
 
 - **False positive:** an `M`+`C` check for a field that can never be a muxed
-  contract. There is no ignore comment yet (planned).
+  contract. There is no ignore comment yet ([#7](https://github.com/Protocol-30/stellar-p30-check/issues/7)).
 - **False positive:** in JS, `W` handling in a helper called from the same
   function is not seen; only the function's own text is checked.
 - **False negative:** validators built from variables, loops, `switch` on the
   first character, or a regex stored in a constant elsewhere and passed in.
 - **False negative:** a regex that lists `W` but only allows 56 characters,
-  which still rejects real `W` addresses.
+  which still rejects real `W` addresses ([#13](https://github.com/Protocol-30/stellar-p30-check/issues/13)).
 - **False negative:** in JS, `W` handled anywhere in a top-level file
   suppresses top-level allowlists in that file.
 - **False negative:** JS/TS checks spread over several statements, such as an
-  `if` / `else if` chain.
+  `if` / `else if` chain ([#14](https://github.com/Protocol-30/stellar-p30-check/issues/14)).
 
 ## P30-XDR-001: ledger XDR
 
@@ -258,5 +258,5 @@ Ledger sequence numbers still increase by one per ledger.
 All cases: [testdata/rules/ts-001](../testdata/rules/ts-001/README.md).
 
 Known false positives and negatives:
-- **False positive:** a JS object field called `closeTime` that is not a ledger close time (for example opening hours).
+- **False positive:** a JS object field called `closeTime` that is not a ledger close time (for example opening hours) ([#15](https://github.com/Protocol-30/stellar-p30-check/issues/15)).
 - **False negative:** differences stored in a variable before dividing, durations from `time.Since`, and close times read through getters with other names.
