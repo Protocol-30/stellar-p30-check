@@ -13,13 +13,23 @@ muxed-contract addresses, and ledger-header decoding that predates CAP-88.
 > (ledger decoding that fails on CAP-88 ledgers) and
 > [P30-TS-001](docs/rules.md#p30-ts-001-close-times) (close-time
 > assumptions). Verification results: [docs/verification.md](docs/verification.md).
-> Phase 9 (release binaries) is prepared and waits on the owner; see
-> [docs/release.md](docs/release.md). See [docs/roadmap.md](docs/roadmap.md) and
+> Latest release: [v0.1.0](https://github.com/Protocol-30/stellar-p30-check/releases/tag/v0.1.0)
+> (binaries for Linux, macOS and Windows, with `SHA256SUMS`). See [docs/roadmap.md](docs/roadmap.md) and
 > [docs/limitations.md](docs/limitations.md).
 
 ## Quick start
 
-Requires Go 1.25 or newer (CI tests on Go 1.26 and 1.27).
+Download a binary from the
+[v0.1.0 release](https://github.com/Protocol-30/stellar-p30-check/releases/tag/v0.1.0)
+and check it against `SHA256SUMS` (steps in
+[docs/ci-integration.md](docs/ci-integration.md)), or install with Go 1.25 or
+newer:
+
+```sh
+go install github.com/Protocol-30/stellar-p30-check/cmd/p30check@v0.1.0
+```
+
+To build from source (CI tests on Go 1.26 and 1.27):
 
 ```sh
 go build -o p30check ./cmd/p30check
