@@ -20,7 +20,7 @@ ships something that works and is tested.
 | 10 Repo hygiene | LICENSE, branch protection on real CI job names, topics, issues from the backlog, release tag | Done (2026-10-27): LICENSE, CONTRIBUTING, SECURITY, CI, release tag `v0.1.0`, default branch `main`, issue and PR templates, Dependabot for workflow actions, backlog filed as [issues](https://github.com/Protocol-30/stellar-p30-check/issues), and the owner settings in [maintaining.md](maintaining.md): `main` ruleset on the five CI checks, `v*` tag ruleset, private vulnerability reporting, Dependabot alerts, secret scanning, topics |
 | 11 Documentation | Rule catalog and CI guide; a docs site only if the README stops being enough | Done (2026-10-27): [rules.md](rules.md), [ci-integration.md](ci-integration.md), [reading-reports.md](reading-reports.md), a review of every doc against v0.1.0 behaviour. No docs site: the README and `docs/` render on GitHub and cover v0.1.0 |
 | **12 Wave submission** | Re-check Drips Wave eligibility and the approved-repo list, then submit ([#11](https://github.com/Protocol-30/stellar-p30-check/issues/11)) | **In progress.** Brief ready: [wave-submission.md](wave-submission.md) (eligibility checklist, steps, description, demo, issue complexities). Owner applies in the Drips Wave app |
-| 13 Iteration | Testnet feedback from the Nov 3 vote, Mainnet hardening before the Nov 23 vote, SARIF / GitHub Action | Not started |
+| 13 Iteration | Testnet feedback from the Nov 3 vote, Mainnet hardening before the Nov 23 vote, SARIF / GitHub Action | Started: a daily maintenance run ([maintaining.md](maintaining.md#daily-maintenance)) checks CI, fuzzes, tracks SDK and toolchain releases and merges its own fixes |
 
 ## Phase 8 steps
 

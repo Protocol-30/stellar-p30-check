@@ -10,6 +10,7 @@
   entries mean, and what to do about each.
 - docs/wave-submission.md: Drips Stellar Wave eligibility checklist,
   application steps, project description, demo and issue complexities.
+- docs/maintaining.md: the daily maintenance procedure and its limits.
 
 ### Fixed
 - Docs: the file-size ceiling in docs/architecture.md (16 MiB), the exact
