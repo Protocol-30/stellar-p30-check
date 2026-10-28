@@ -8,6 +8,8 @@
   and tag rulesets, security settings, topics).
 - docs/reading-reports.md: what severity, confidence, warnings and skipped
   entries mean, and what to do about each.
+- docs/wave-submission.md: Drips Stellar Wave eligibility checklist,
+  application steps, project description, demo and issue complexities.
 
 ### Fixed
 - Docs: the file-size ceiling in docs/architecture.md (16 MiB), the exact

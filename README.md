@@ -130,6 +130,7 @@ Flags may come before or after the path.
 - [docs/ci-integration.md](docs/ci-integration.md) — installing and gating in CI
 - [docs/release.md](docs/release.md) — how releases are built and published
 - [docs/maintaining.md](docs/maintaining.md) — repository settings, issues and labels
+- [docs/wave-submission.md](docs/wave-submission.md) — Drips Stellar Wave application brief
 - [docs/plan/](docs/plan/) — original build plan and backlog
 - [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [CHANGELOG.md](CHANGELOG.md)
 
