@@ -130,7 +130,7 @@ The daily run never:
    | `github.com/stellar/go-stellar-sdk` latest | https://proxy.golang.org/github.com/stellar/go-stellar-sdk/@latest | v0.8.0 |
    | `@stellar/stellar-sdk` latest | https://registry.npmjs.org/@stellar/stellar-sdk/latest | 17.4.0 |
    | `@stellar/stellar-base` latest | https://registry.npmjs.org/@stellar/stellar-base/latest | 15.0.0 |
-   | Go toolchains | https://proxy.golang.org/golang.org/toolchain/@v/list | go1.27.3, go1.26.10 |
+   | Go toolchains | https://proxy.golang.org/golang.org/toolchain/@v/list | go1.27.4, go1.26.11 |
    | CAP-84, CAP-88 text | https://raw.githubusercontent.com/stellar/stellar-protocol/master/core/cap-0084.md, `.../cap-0088.md` | E1, E2, E18 |
 
    For each change:
