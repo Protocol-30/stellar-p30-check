@@ -127,7 +127,7 @@ The daily run never:
 
    | What | Where | Recorded |
    |------|-------|----------|
-   | `github.com/stellar/go-stellar-sdk` latest | https://proxy.golang.org/github.com/stellar/go-stellar-sdk/@latest | v0.8.0 |
+   | `github.com/stellar/go-stellar-sdk` latest | https://proxy.golang.org/github.com/stellar/go-stellar-sdk/@latest | v0.9.0 |
    | `@stellar/stellar-sdk` latest | https://registry.npmjs.org/@stellar/stellar-sdk/latest | 17.4.0 |
    | `@stellar/stellar-base` latest | https://registry.npmjs.org/@stellar/stellar-base/latest | 15.0.0 |
    | Go toolchains | https://proxy.golang.org/golang.org/toolchain/@v/list | go1.27.4, go1.26.11 |
